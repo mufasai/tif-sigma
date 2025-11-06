@@ -4,7 +4,7 @@ services:
     restart: "unless-stopped"
     expose:
       - "80"
-    network:
+    networks:
       - shared-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -14,3 +14,7 @@ services:
 networks:
   shared-network:
     external: true
+
+# tunnel: rocky37_shared-network
+# domain: tif-sigma.3ddm.my.id
+# path: ~/workspace/tif-sigma
