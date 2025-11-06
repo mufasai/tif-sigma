@@ -31,18 +31,38 @@ export interface ParsedMapData {
  */
 export const parseNodeCSV = (csvText: string): Promise<NodeData[]> => {
   return new Promise((resolve, reject) => {
-    Papa.parse<NodeData>(csvText, {
+    Papa.parse<any>(csvText, {
       header: true,
       skipEmptyLines: true,
       dynamicTyping: true,
       complete: (results) => {
-        const validNodes = results.data.filter(
-          (node) =>
-            node.latitude &&
-            node.longitude &&
-            !isNaN(node.latitude) &&
-            !isNaN(node.longitude)
-        );
+        const validNodes = results.data
+          .map((row: any) => {
+            // Try to get coordinates from file2_longitude/file2_latitude first, then fallback to longitude/latitude
+            const longitude = row.file2_longitude || row.longitude;
+            const latitude = row.file2_latitude || row.latitude;
+            
+            // Skip rows without valid coordinates
+            if (!longitude || !latitude || isNaN(longitude) || isNaN(latitude)) {
+              return null;
+            }
+
+            return {
+              node: row.node || row.hostname || 'Unknown',
+              sto_a: row.file2_sto_a || row.sto_a || '',
+              types: row.file2_types || row.types || '',
+              platform: row.file2_platform || row.platform || '',
+              sto: row.file2_sto || row.sto || '',
+              sto_l: row.file2_sto_l || row.sto_l || '',
+              witel: row.file2_witel || row.witel || '',
+              reg: row.file2_reg || row.reg || '',
+              cluster: row.file2_cluster || row.cluster || '',
+              longitude: parseFloat(longitude),
+              latitude: parseFloat(latitude),
+            } as NodeData;
+          })
+          .filter((node): node is NodeData => node !== null);
+        
         resolve(validNodes);
       },
       error: (error) => {

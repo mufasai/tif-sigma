@@ -5,9 +5,7 @@ import '../styles/maplibre-view.css';
 import { CSVUploadModal } from '../components/CSVUploadModal';
 import {
   parseMapData,
-  generateEdgesFromNodes,
   NodeData,
-  EdgeData,
 } from '../utils/maplibreCSVParser';
 import { FiUpload, FiX, FiMapPin } from 'react-icons/fi';
 
@@ -15,14 +13,51 @@ interface MapLibreViewProps {
   onClose: () => void;
 }
 
+interface ClusterPoint {
+  type: 'Feature';
+  geometry: {
+    type: 'Point';
+    coordinates: [number, number];
+  };
+  properties: {
+    node: string;
+    sto: string;
+    witel: string;
+    reg: string;
+    types: string;
+    platform: string;
+    latitude: number;
+    longitude: number;
+  };
+}
+
 export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [nodes, setNodes] = useState<NodeData[]>([]);
-  const [edges, setEdges] = useState<EdgeData[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const markers = useRef<maplibregl.Marker[]>([]);
+  const [isLoadingDefault, setIsLoadingDefault] = useState(true);
+
+  // Load default data from joined_data.csv
+  useEffect(() => {
+    const loadDefaultData = async () => {
+      try {
+        const response = await fetch('/joined_data.csv');
+        if (!response.ok) {
+          throw new Error('Failed to load default data');
+        }
+        const csvContent = await response.text();
+        await handleCSVUpload(csvContent);
+      } catch (error) {
+        console.error('Error loading default data:', error);
+      } finally {
+        setIsLoadingDefault(false);
+      }
+    };
+
+    loadDefaultData();
+  }, []);
 
   // Initialize map
   useEffect(() => {
@@ -67,47 +102,21 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
     };
   }, []);
 
-  // Create arc line GeoJSON
-  const createArcLine = (
-    lon1: number,
-    lat1: number,
-    lon2: number,
-    lat2: number,
-    numPoints: number = 50
-  ): number[][] => {
-    const points: number[][] = [];
-    const height = 0.5; // Arc height factor
-
-    for (let i = 0; i <= numPoints; i++) {
-      const t = i / numPoints;
-      const lon = lon1 + (lon2 - lon1) * t;
-      const lat = lat1 + (lat2 - lat1) * t;
-
-      // Add curvature
-      const curve = Math.sin(t * Math.PI) * height;
-      const adjustedLat = lat + curve;
-
-      points.push([lon, adjustedLat]);
-    }
-
-    return points;
-  };
-
-  // Update map with nodes and edges
-  const updateMapData = (newNodes: NodeData[], newEdges: EdgeData[]) => {
+  // Update map with clustering
+  const updateMapData = (newNodes: NodeData[]) => {
     if (!map.current || !mapLoaded) return;
 
     try {
-      // Clear existing markers
-      markers.current.forEach((marker) => marker.remove());
-      markers.current = [];
-
       // Remove existing layers and sources
-      if (map.current.getLayer('edges-layer')) {
-        map.current.removeLayer('edges-layer');
-      }
-      if (map.current.getSource('edges')) {
-        map.current.removeSource('edges');
+      const layersToRemove = ['clusters', 'cluster-count', 'unclustered-point'];
+      layersToRemove.forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+
+      if (map.current.getSource('nodes')) {
+        map.current.removeSource('nodes');
       }
 
       // Validate nodes data
@@ -116,133 +125,174 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         return;
       }
 
-      // Add nodes as markers
-      newNodes.forEach((node) => {
-        // Validate node data
-        if (!node.longitude || !node.latitude || 
-            isNaN(node.longitude) || isNaN(node.latitude)) {
-          console.warn('Invalid node coordinates:', node);
-          return;
-        }
+      // Convert nodes to GeoJSON features
+      const features: ClusterPoint[] = newNodes
+        .filter((node) => node.longitude && node.latitude && 
+                !isNaN(node.longitude) && !isNaN(node.latitude))
+        .map((node) => ({
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [node.longitude, node.latitude] as [number, number],
+          },
+          properties: {
+            node: node.node || 'Unknown',
+            sto: node.sto_l || node.sto || '-',
+            witel: node.witel || '-',
+            reg: node.reg || '-',
+            types: node.types || '-',
+            platform: node.platform || '-',
+            latitude: node.latitude,
+            longitude: node.longitude,
+          },
+        }));
 
-        const el = document.createElement('div');
-        el.className = 'maplibre-marker';
-
-        const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
-          <div style="font-size: 12px;">
-            <strong>${node.node || 'Unknown'}</strong><br/>
-            <strong>STO:</strong> ${node.sto_l || node.sto || '-'}<br/>
-            <strong>Witel:</strong> ${node.witel || '-'}<br/>
-            <strong>Region:</strong> ${node.reg || '-'}<br/>
-            <strong>Type:</strong> ${node.types || '-'}<br/>
-            <strong>Platform:</strong> ${node.platform || '-'}<br/>
-            <strong>Coordinates:</strong> ${node.latitude.toFixed(4)}, ${node.longitude.toFixed(4)}
-          </div>
-        `);
-
-        const marker = new maplibregl.Marker(el)
-          .setLngLat([node.longitude, node.latitude])
-          .setPopup(popup)
-          .addTo(map.current!);
-
-        markers.current.push(marker);
-      });
-
-      // Add edges as arc lines
-      if (newEdges && newEdges.length > 0) {
-        const nodeMap = new Map(newNodes.map((n) => [n.node, n]));
-        const features = newEdges
-          .map((edge) => {
-            const sourceNode = nodeMap.get(edge.source);
-            const targetNode = nodeMap.get(edge.target);
-
-            if (!sourceNode || !targetNode) return null;
-
-            const arcPoints = createArcLine(
-              sourceNode.longitude,
-              sourceNode.latitude,
-              targetNode.longitude,
-              targetNode.latitude
-            );
-
-            return {
-              type: 'Feature' as const,
-              properties: {
-                source: edge.source,
-                target: edge.target,
-                bandwidth: edge.bandwidth || 0,
-              },
-              geometry: {
-                type: 'LineString' as const,
-                coordinates: arcPoints,
-              },
-            };
-          })
-          .filter((f) => f !== null);
-
-        if (features.length > 0) {
-          map.current.addSource('edges', {
-            type: 'geojson',
-            data: {
-              type: 'FeatureCollection',
-              features: features as any,
-            },
-          });
-
-          map.current.addLayer({
-            id: 'edges-layer',
-            type: 'line',
-            source: 'edges',
-            layout: {
-              'line-join': 'round',
-              'line-cap': 'round',
-            },
-            paint: {
-              'line-color': '#e22653',
-              'line-width': 2,
-              'line-opacity': 0.6,
-            },
-          });
-
-          // Add hover effect for edges
-          map.current.on('mouseenter', 'edges-layer', () => {
-            map.current!.getCanvas().style.cursor = 'pointer';
-          });
-
-          map.current.on('mouseleave', 'edges-layer', () => {
-            map.current!.getCanvas().style.cursor = '';
-          });
-
-          map.current.on('click', 'edges-layer', (e) => {
-            if (e.features && e.features.length > 0) {
-              const feature = e.features[0];
-              const props = feature.properties;
-              new maplibregl.Popup()
-                .setLngLat(e.lngLat)
-                .setHTML(`
-                  <div style="font-size: 12px;">
-                    <strong>Connection</strong><br/>
-                    <strong>From:</strong> ${props?.source}<br/>
-                    <strong>To:</strong> ${props?.target}<br/>
-                    <strong>Bandwidth:</strong> ${props?.bandwidth?.toFixed(2) || 0} Mbps
-                  </div>
-                `)
-                .addTo(map.current!);
-            }
-          });
-        }
+      if (features.length === 0) {
+        console.warn('No valid features to display');
+        return;
       }
 
-      // Fit map to bounds
-      if (newNodes.length > 0) {
-        const bounds = new maplibregl.LngLatBounds();
-        newNodes.forEach((node) => {
-          if (node.longitude && node.latitude && 
-              !isNaN(node.longitude) && !isNaN(node.latitude)) {
-            bounds.extend([node.longitude, node.latitude]);
-          }
+      // Add source with clustering
+      map.current.addSource('nodes', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: features,
+        },
+        cluster: true,
+        clusterMaxZoom: 14, // Max zoom to cluster points on
+        clusterRadius: 50, // Radius of each cluster when clustering points
+      });
+
+      // Add cluster circles layer
+      map.current.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'nodes',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            '#51bbd6', // Color for clusters with < 100 points
+            100,
+            '#f1f075', // Color for clusters with 100-750 points
+            750,
+            '#f28cb1', // Color for clusters with > 750 points
+          ],
+          'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            20, // Radius for clusters with < 100 points
+            100,
+            30, // Radius for clusters with 100-750 points
+            750,
+            40, // Radius for clusters with > 750 points
+          ],
+        },
+      });
+
+      // Add cluster count labels
+      map.current.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'nodes',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+          'text-size': 12,
+        },
+        paint: {
+          'text-color': '#ffffff',
+        },
+      });
+
+      // Add unclustered points layer
+      map.current.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'nodes',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#e22653',
+          'circle-radius': 6,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+        },
+      });
+
+      // Click event for clusters - zoom in
+      map.current.on('click', 'clusters', async (e) => {
+        const features = map.current!.queryRenderedFeatures(e.point, {
+          layers: ['clusters'],
         });
-        map.current.fitBounds(bounds, { padding: 50 });
+
+        if (features.length > 0) {
+          const clusterId = features[0].properties?.cluster_id;
+          const source = map.current!.getSource('nodes') as maplibregl.GeoJSONSource;
+          
+          try {
+            const zoom = await source.getClusterExpansionZoom(clusterId);
+            const coordinates = (features[0].geometry as any).coordinates;
+            map.current!.easeTo({
+              center: coordinates,
+              zoom: zoom,
+            });
+          } catch (err) {
+            console.error('Error getting cluster expansion zoom:', err);
+          }
+        }
+      });
+
+      // Click event for unclustered points - show popup
+      map.current.on('click', 'unclustered-point', (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = (feature.geometry as any).coordinates.slice();
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-size: 12px;">
+                <strong>${props?.node || 'Unknown'}</strong><br/>
+                <strong>STO:</strong> ${props?.sto || '-'}<br/>
+                <strong>Witel:</strong> ${props?.witel || '-'}<br/>
+                <strong>Region:</strong> ${props?.reg || '-'}<br/>
+                <strong>Type:</strong> ${props?.types || '-'}<br/>
+                <strong>Platform:</strong> ${props?.platform || '-'}<br/>
+                <strong>Coordinates:</strong> ${props?.latitude?.toFixed(4)}, ${props?.longitude?.toFixed(4)}
+              </div>
+            `)
+            .addTo(map.current!);
+        }
+      });
+
+      // Change cursor on hover
+      map.current.on('mouseenter', 'clusters', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'clusters', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+      map.current.on('mouseenter', 'unclustered-point', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'unclustered-point', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+      // Fit map to bounds
+      if (features.length > 0) {
+        const bounds = new maplibregl.LngLatBounds();
+        features.forEach((feature) => {
+          bounds.extend(feature.geometry.coordinates);
+        });
+        map.current.fitBounds(bounds, { padding: 50, maxZoom: 12 });
       }
     } catch (error) {
       console.error('Error updating map data:', error);
@@ -254,27 +304,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
   const handleCSVUpload = async (csvContent: string) => {
     try {
       const parsedData = await parseMapData(csvContent);
-      let finalEdges = parsedData.edges;
-
-      // Generate edges if not provided (always generate for single file upload)
-      if (parsedData.nodes.length > 0) {
-        finalEdges = generateEdgesFromNodes(parsedData.nodes, 2);
-      }
-
       setNodes(parsedData.nodes);
-      setEdges(finalEdges);
     } catch (error) {
       console.error('Error parsing CSV:', error);
       alert('Gagal memproses file CSV. Pastikan format file sudah benar dan memiliki kolom: node, latitude, longitude');
     }
   };
 
-  // Update map when nodes or edges change
+  // Update map when nodes change
   useEffect(() => {
     if (mapLoaded && nodes.length > 0) {
-      updateMapData(nodes, edges);
+      updateMapData(nodes);
     }
-  }, [nodes, edges, mapLoaded]);
+  }, [nodes, mapLoaded]);
 
   return (
     <div className="maplibre-view">
@@ -297,9 +339,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         <div className="stat-item">
           <strong>Nodes:</strong> {nodes.length}
         </div>
-        <div className="stat-item">
-          <strong>Edges:</strong> {edges.length}
-        </div>
+        {isLoadingDefault && (
+          <div className="stat-item" style={{ color: '#e22653' }}>
+            Loading default data...
+          </div>
+        )}
       </div>
 
       <div ref={mapContainer} className="map-container" />

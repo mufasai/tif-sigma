@@ -182,6 +182,34 @@
   background-color: var(--cream);
 }
 
+/* Cluster marker styles */
+.maplibre-cluster-marker {
+  background-color: #51bbd6;
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.maplibre-cluster-marker:hover {
+  transform: scale(1.1);
+}
+
+.maplibre-cluster-marker.large {
+  background-color: #f28cb1;
+}
+
+.maplibre-cluster-marker.medium {
+  background-color: #f1f075;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .maplibre-header {
