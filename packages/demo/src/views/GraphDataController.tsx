@@ -18,6 +18,13 @@ const GraphDataController: FC<PropsWithChildren<{ filters: FiltersState }>> = ({
                        models[attributes.model];
       graph.setNodeAttribute(node, "hidden", !isVisible);
     });
+
+    // Hide edges if either source or target node is hidden
+    graph.forEachEdge((edge, _attributes, source, target) => {
+      const sourceHidden = graph.getNodeAttribute(source, "hidden");
+      const targetHidden = graph.getNodeAttribute(target, "hidden");
+      graph.setEdgeAttribute(edge, "hidden", sourceHidden || targetHidden);
+    });
   }, [graph, filters]);
 
   return <>{children}</>;
