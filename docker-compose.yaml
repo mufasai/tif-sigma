@@ -1,0 +1,16 @@
+services:
+  tif-sigma-fe:
+    image: g3n1k/tif-sigma-fe
+    restart: "unless-stopped"
+    expose:
+      - "80"
+    network:
+      - shared-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    
+networks:
+  shared-network:
+    external: true

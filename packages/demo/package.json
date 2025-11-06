@@ -3,7 +3,7 @@
   "private": true,
   "homepage": "/demo",
   "scripts": {
-    "start": "vite --port 5000",
+    "start": "vite --host --port 5000",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
