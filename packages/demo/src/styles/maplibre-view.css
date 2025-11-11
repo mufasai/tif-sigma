@@ -102,6 +102,46 @@
   opacity: 1;
 }
 
+.maplibre-view .layer-btn {
+  background: white;
+  color: black;
+  border: 1px solid var(--dark-grey);
+}
+
+.maplibre-view .layer-btn:hover {
+  background: var(--cream);
+  opacity: 1;
+}
+
+.maplibre-view .layer-btn-active {
+  background: #4ECDC4;
+  color: white;
+  border-color: #4ECDC4;
+}
+
+.maplibre-view .layer-btn-active:hover {
+  background: #3db8af;
+  border-color: #3db8af;
+  opacity: 1;
+}
+
+.maplibre-view .layer-btn-active-kabupaten {
+  background: #3B82F6;
+  color: white;
+  border-color: #3B82F6;
+}
+
+.maplibre-view .layer-btn-active-kabupaten:hover {
+  background: #2563EB;
+  border-color: #2563EB;
+  opacity: 1;
+}
+
+.maplibre-view .button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .map-stats {
   background: var(--cream);
   padding: 0.8em 1.5em;
@@ -124,6 +164,27 @@
 .map-container {
   flex: 1;
   position: relative;
+}
+
+/* Sigma layer overlay */
+.sigma-container {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.sigma-container canvas {
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+.sigma-container > div {
+  background: transparent !important;
 }
 
 /* Marker styles */
