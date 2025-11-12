@@ -27,7 +27,7 @@ import type { FeatureCollection } from 'geojson';
 // }
 
 interface MapLibreViewProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 // interface ClusterPoint {
@@ -77,7 +77,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
     if (onClose) {
       onClose();
     } else {
-      navigate('/');
+      navigate('/base');
     }
   };
 

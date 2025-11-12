@@ -12,8 +12,8 @@ root.render(
   <React.StrictMode>
     <BrowserRouter basename="/">
       <Routes>
-        <Route path="/" element={<Root />} />
-        <Route path="/map" element={<MapLibreView onClose={() => window.history.back()} />} />
+        <Route path="/" element={<MapLibreView />} />
+        <Route path="/base" element={<Root />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
