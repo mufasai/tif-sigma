@@ -102,6 +102,46 @@
   opacity: 1;
 }
 
+.maplibre-view .layer-btn {
+  background: white;
+  color: black;
+  border: 1px solid var(--dark-grey);
+}
+
+.maplibre-view .layer-btn:hover {
+  background: var(--cream);
+  opacity: 1;
+}
+
+.maplibre-view .layer-btn-active {
+  background: #4ECDC4;
+  color: white;
+  border-color: #4ECDC4;
+}
+
+.maplibre-view .layer-btn-active:hover {
+  background: #3db8af;
+  border-color: #3db8af;
+  opacity: 1;
+}
+
+.maplibre-view .layer-btn-active-kabupaten {
+  background: #3B82F6;
+  color: white;
+  border-color: #3B82F6;
+}
+
+.maplibre-view .layer-btn-active-kabupaten:hover {
+  background: #2563EB;
+  border-color: #2563EB;
+  opacity: 1;
+}
+
+.maplibre-view .button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .map-stats {
   background: var(--cream);
   padding: 0.8em 1.5em;
@@ -124,6 +164,27 @@
 .map-container {
   flex: 1;
   position: relative;
+}
+
+/* Sigma layer overlay */
+.sigma-container {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
+  pointer-events: auto;
+  z-index: 0;
+}
+
+.sigma-container canvas {
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+.sigma-container > div {
+  background: transparent !important;
 }
 
 /* Marker styles */
@@ -210,6 +271,42 @@
   background-color: #f1f075;
 }
 
+/* Layer select dropdown */
+.layer-select {
+  padding: 0.5em 1em;
+  border: 1px solid var(--dark-grey);
+  border-radius: var(--border-radius);
+  background: white;
+  color: black;
+  font-size: 0.9em;
+  font-family: "Public Sans", sans-serif;
+  cursor: pointer;
+  min-width: 150px;
+  transition: var(--transition);
+}
+
+.layer-select:hover {
+  border-color: var(--ruby);
+  background: var(--cream);
+}
+
+.layer-select:focus {
+  outline: none;
+  border-color: var(--ruby);
+  box-shadow: 0 0 0 2px rgba(226, 38, 83, 0.1);
+}
+
+.layer-select option {
+  padding: 0.5em;
+  background: white;
+  color: black;
+}
+
+.layer-select option:disabled {
+  color: var(--grey);
+  font-style: italic;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .maplibre-header {
@@ -229,14 +326,120 @@
   .header-actions {
     width: 100%;
     justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .layer-select {
+    min-width: 120px;
+    font-size: 0.85em;
   }
 
   .map-stats {
     padding: 0.7em 1em;
     gap: 1em;
+    flex-wrap: wrap;
   }
 
   .stat-item {
     font-size: 0.85em;
   }
+}
+
+/* Legend Styles */
+.map-legend {
+  position: absolute;
+  bottom: 30px;
+  right: 10px;
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  font-family: "Public Sans", sans-serif;
+  font-size: 12px;
+  z-index: 10;
+  min-width: 180px;
+}
+
+.map-legend h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.legend-section {
+  margin-bottom: 15px;
+}
+
+.legend-section:last-child {
+  margin-bottom: 0;
+}
+
+.legend-section-title {
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.legend-item:last-child {
+  margin-bottom: 0;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
+}
+
+.legend-line {
+  width: 30px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  color: #666;
+  font-size: 11px;
+}
+
+/* Vendor colors */
+.vendor-cisco {
+  background-color: #1BA1E2;
+}
+
+.vendor-huawei {
+  background-color: #E74C3C;
+}
+
+.vendor-nokia {
+  background-color: #27AE60;
+}
+
+/* Status colors */
+.status-good {
+  background-color: #2ECC71;
+}
+
+.status-medium {
+  background-color: #F39C12;
+}
+
+.status-low {
+  background-color: #E74C3C;
 }
