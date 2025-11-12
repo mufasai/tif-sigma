@@ -3,6 +3,7 @@ import { DirectedGraph } from "graphology";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { groupBy, mapValues, uniq } from "lodash";
 import { FC, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BiBookContent, BiRadioCircleMarked } from "react-icons/bi";
 import { BsArrowsFullscreen, BsFullscreenExit, BsZoomIn, BsZoomOut } from "react-icons/bs";
 import { GrClose } from "react-icons/gr";
@@ -24,7 +25,6 @@ import ManufacturerPanel from "./ManufacturerPanel";
 import ModelPanel from "./ModelPanel";
 import RegionPanel from "./RegionPanel";
 import SearchField from "./SearchField";
-import { MapLibreView } from "./MapLibreView";
 import { CsvJoinView } from "./CsvJoinView";
 
 // Color map for different manufacturers
@@ -37,6 +37,7 @@ const MANUFACTURER_COLORS = {
 };
 
 const Root: FC = () => {
+  const navigate = useNavigate();
   const graph = useMemo(() => new DirectedGraph(), []);
   const [showContents, setShowContents] = useState(false);
   const [dataReady, setDataReady] = useState(false);
@@ -45,7 +46,6 @@ const Root: FC = () => {
   const [regions, setRegionsList] = useState<string[]>([]);
   const [models, setModelsList] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showMapLibre, setShowMapLibre] = useState(false);
   const [showCsvJoin, setShowCsvJoin] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [filtersState, setFiltersState] = useState<FiltersState>({
@@ -176,7 +176,7 @@ const Root: FC = () => {
 
         // Skip if edge already exists
         if (graph.hasEdge(edge.source, edge.target)) {
-          console.warn(`Edge ${edge.source} -> ${edge.target} already exists, skipping...`);
+          
           return;
         }
 
@@ -259,7 +259,7 @@ const Root: FC = () => {
                 <button
                   type="button"
                   className="maplibre-view"
-                  onClick={() => setShowMapLibre(true)}
+                  onClick={() => navigate('/map')}
                   title="Switch to MapLibre view"
                 >
                   <FiMap />
@@ -370,10 +370,6 @@ const Root: FC = () => {
           </>
         )}
       </SigmaContainer>
-
-      {showMapLibre && (
-        <MapLibreView onClose={() => setShowMapLibre(false)} />
-      )}
 
       {showCsvJoin && (
         <CsvJoinView onClose={() => setShowCsvJoin(false)} />
