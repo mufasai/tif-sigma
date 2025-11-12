@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../styles/maplibre-view.css';
@@ -48,6 +49,7 @@ interface MapLibreViewProps {
 // }
 
 export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
+  const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const sigmaContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -70,6 +72,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
   const [selectedNodeData, setSelectedNodeData] = useState<Record<string, string> | null>(null);
+
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/');
+    }
+  };
 
   // Load default data from joined_data.csv
   useEffect(() => {
@@ -210,7 +220,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         // eslint-disable-next-line no-console
         console.log('Multilayer map data loaded:', geojson);
         // Show multilayer map by default after loading
-        setShowMultilayerMap(true);
+        setTimeout(() => {
+          setShowMultilayerMap(true);
+        }, 1000);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('Error loading multilayer map data:', error);
@@ -1296,7 +1308,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         data: multilayerMapData
       });
 
-      // Add polygon fill layer
+      // Add polygon fill layer (bottom layer)
       map.current.addLayer({
         id: 'multilayer-polygons-fill',
         type: 'fill',
@@ -1317,18 +1329,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         paint: {
           'line-color': '#8E44AD',
           'line-width': 2
-        }
-      });
-
-      // Add polygon hover effect
-      map.current.addLayer({
-        id: 'multilayer-polygons-hover',
-        type: 'fill',
-        source: 'multilayer-map',
-        filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['==', ['get', 'hostname'], '']],
-        paint: {
-          'fill-color': '#9B59B6',
-          'fill-opacity': 0.7
         }
       });
 
@@ -1373,7 +1373,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         }
       });
 
-      // Add points layer with vendor-based colors
+      // Add points layer with vendor-based colors (TOP LAYER)
       map.current.addLayer({
         id: 'multilayer-points',
         type: 'circle',
@@ -1394,6 +1394,18 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           'circle-opacity': 0.9
         }
       });
+
+      // Add polygon hover effect (must be after points to be on top)
+      // map.current.addLayer({
+      //   id: 'multilayer-polygons-hover',
+      //   type: 'fill',
+      //   source: 'multilayer-map',
+      //   filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['==', ['get', 'hostname'], '']],
+      //   paint: {
+      //     'fill-color': '#9B59B6',
+      //     'fill-opacity': 0.7
+      //   }
+      // });
 
       // Add click handler for polygons
       map.current.on('click', 'multilayer-polygons-fill', (e) => {
@@ -1778,7 +1790,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           <button className="button upload-btn" onClick={() => setIsModalOpen(true)}>
             <FiUpload /> Tambah Data
           </button>
-          <button className="button close-btn" onClick={onClose}>
+          <button className="button close-btn" onClick={handleClose}>
             <FiX /> Tutup
           </button>
         </div>
