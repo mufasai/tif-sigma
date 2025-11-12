@@ -3,6 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../styles/maplibre-view.css';
 import { CSVUploadModal } from '../components/CSVUploadModal';
+import { NodeDetailDialog } from '../components/NodeDetailDialog';
 import {
   parseMapData,
   NodeData,
@@ -17,6 +18,7 @@ import { latlngToGraph } from '@sigma/layer-maplibre';
 import Graph from 'graphology';
 import { SerializedGraph } from 'graphology-types';
 import Sigma from 'sigma';
+import type { FeatureCollection } from 'geojson';
 
 // interface PointGeometry {
 //   type: 'Point';
@@ -61,6 +63,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
   const [capacityData, setCapacityData] = useState<Record<string, string>[]>([]);
   const [showSigmaLayer, setShowSigmaLayer] = useState(false);
   const [airportsData, setAirportsData] = useState<SerializedGraph | null>(null);
+  const [showSirkitLayer, setShowSirkitLayer] = useState(false);
+  const [sirkitData, setSirkitData] = useState<Record<string, string>[]>([]);
+  const [selectedLayer, setSelectedLayer] = useState<string>('none');
+  const [showMultilayerMap, setShowMultilayerMap] = useState(false);
+  const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
+  const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
+  const [selectedNodeData, setSelectedNodeData] = useState<Record<string, string> | null>(null);
 
   // Load default data from joined_data.csv
   useEffect(() => {
@@ -97,11 +106,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
     loadKabupaten();
   }, []);
 
-  // Load capacity data
+  // Load capacity data (using 1613 version with 'cap' column)
   useEffect(() => {
     const loadCapacityData = async () => {
       try {
-        const response = await fetch('/data/capacity_ref_202511101441.csv');
+        const response = await fetch('/data/capacity_ref_202511101613.csv');
         if (!response.ok) {
           throw new Error('Failed to load capacity data');
         }
@@ -150,6 +159,63 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
     };
 
     loadAirportsData();
+  }, []);
+
+  // Load sirkit data
+  useEffect(() => {
+    const loadSirkitData = async () => {
+      try {
+        const response = await fetch('/data/list_sirkit_ref_202511101614.csv');
+        if (!response.ok) {
+          throw new Error('Failed to load sirkit data');
+        }
+        const csvText = await response.text();
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+
+        const data = lines.slice(1)
+          .filter(line => line.trim())
+          .map(line => {
+            const values = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g) || [];
+            const row: Record<string, string> = {};
+            headers.forEach((header, index) => {
+              if (values[index]) {
+                row[header] = values[index].replace(/^"|"$/g, '').trim();
+              }
+            });
+            return row;
+          })
+          .filter(row => row.longitude && row.latitude);
+
+        setSirkitData(data);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading sirkit data:', error);
+      }
+    };
+
+    loadSirkitData();
+  }, []);
+
+  // Load multilayer map GeoJSON data
+  useEffect(() => {
+    const loadMultilayerMapData = async () => {
+      try {
+        const response = await fetch('/data/multilayer_map.geojson');
+        if (!response.ok) {
+          throw new Error('Failed to load multilayer map data');
+        }
+        const geojson = await response.json();
+        setMultilayerMapData(geojson);
+        // eslint-disable-next-line no-console
+        console.log('Multilayer map data loaded:', geojson);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading multilayer map data:', error);
+      }
+    };
+
+    loadMultilayerMapData();
   }, []);
 
   // Initialize map
@@ -655,17 +721,62 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
       const allCoordinates = capacityData.map((item) => ({
         coords: [parseFloat(item.longitude), parseFloat(item.latitude)] as [number, number],
         hostname: item.hostname || 'N/A',
-        sto: item.sto || 'N/A'
+        sto: item.sto || 'N/A',
+        witel: item.witel || 'N/A'
       }));
+
+      // Group points by STO for better connectivity
+      const pointsBySTO = new Map<string, typeof allCoordinates>();
+      allCoordinates.forEach((point) => {
+        const stoKey = point.sto;
+        if (!pointsBySTO.has(stoKey)) {
+          pointsBySTO.set(stoKey, []);
+        }
+        pointsBySTO.get(stoKey)!.push(point);
+      });
 
       // Create connecting lines between ALL points
       const lineFeatures: Array<{
         type: 'Feature';
-        properties: { from: string; to: string };
+        properties: { from: string; to: string; sto: string };
         geometry: { type: 'LineString'; coordinates: Array<[number, number]> };
       }> = [];
 
-      // Create lines connecting each point to its nearest neighbors
+      // Track which connections we've already made to avoid duplicates
+      const connectionSet = new Set<string>();
+
+      // Strategy 1: Connect points within the same STO
+      pointsBySTO.forEach((points, sto) => {
+        if (points.length > 1) {
+          // Sort points by longitude to create a logical path
+          const sortedPoints = [...points].sort((a, b) => a.coords[0] - b.coords[0]);
+
+          // Connect consecutive points in the sorted order
+          for (let i = 0; i < sortedPoints.length - 1; i++) {
+            const point1 = sortedPoints[i];
+            const point2 = sortedPoints[i + 1];
+            const connectionKey = [point1.hostname, point2.hostname].sort().join('|');
+
+            if (!connectionSet.has(connectionKey)) {
+              connectionSet.add(connectionKey);
+              lineFeatures.push({
+                type: 'Feature' as const,
+                properties: {
+                  from: point1.hostname,
+                  to: point2.hostname,
+                  sto: sto
+                },
+                geometry: {
+                  type: 'LineString' as const,
+                  coordinates: [point1.coords, point2.coords]
+                }
+              });
+            }
+          }
+        }
+      });
+
+      // Strategy 2: Connect each point to its 2-3 nearest neighbors (regardless of STO)
       allCoordinates.forEach((point, index) => {
         // Calculate distances to all other points
         const distances = allCoordinates
@@ -679,22 +790,28 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           .filter(d => d !== null)
           .sort((a, b) => a!.distance - b!.distance);
 
-        // Connect to 2 nearest neighbors
-        const neighborsToConnect = Math.min(2, distances.length);
+        // Connect to 3 nearest neighbors
+        const neighborsToConnect = Math.min(3, distances.length);
         for (let i = 0; i < neighborsToConnect; i++) {
           const neighbor = distances[i];
           if (neighbor) {
-            lineFeatures.push({
-              type: 'Feature' as const,
-              properties: {
-                from: point.hostname,
-                to: neighbor.point.hostname
-              },
-              geometry: {
-                type: 'LineString' as const,
-                coordinates: [point.coords, neighbor.point.coords]
-              }
-            });
+            const connectionKey = [point.hostname, neighbor.point.hostname].sort().join('|');
+
+            if (!connectionSet.has(connectionKey)) {
+              connectionSet.add(connectionKey);
+              lineFeatures.push({
+                type: 'Feature' as const,
+                properties: {
+                  from: point.hostname,
+                  to: neighbor.point.hostname,
+                  sto: point.sto === neighbor.point.sto ? point.sto : 'cross-sto'
+                },
+                geometry: {
+                  type: 'LineString' as const,
+                  coordinates: [point.coords, neighbor.point.coords]
+                }
+              });
+            }
           }
         }
       });
@@ -722,6 +839,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         }
       }));
 
+      // eslint-disable-next-line no-console
+      console.log(`Created ${lineFeatures.length} line connections`);
+
       if (lineFeatures.length > 0) {
         // Validate line features
         const validLineFeatures = lineFeatures.filter(feature => {
@@ -742,6 +862,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           return isValid;
         });
 
+        // eslint-disable-next-line no-console
+        console.log(`Valid line features: ${validLineFeatures.length}`);
+
         map.current.addSource('capacity-lines', {
           type: 'geojson',
           data: {
@@ -756,10 +879,15 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           type: 'line',
           source: 'capacity-lines',
           paint: {
-            'line-color': '#FFD700', // Gold color for visibility
-            'line-width': 8,
-            'line-opacity': 0.4,
-            'line-blur': 4
+            'line-color': [
+              'case',
+              ['==', ['get', 'sto'], 'cross-sto'],
+              '#FFD700', // Gold for cross-STO connections
+              '#FF6B35'  // Orange for same-STO connections
+            ],
+            'line-width': 6,
+            'line-opacity': 0.3,
+            'line-blur': 3
           }
         });
 
@@ -769,9 +897,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           type: 'line',
           source: 'capacity-lines',
           paint: {
-            'line-color': '#FF0000', // BRIGHT RED for testing
-            'line-width': 5,
-            'line-opacity': 1.0
+            'line-color': [
+              'case',
+              ['==', ['get', 'sto'], 'cross-sto'],
+              '#FFA500', // Orange for cross-STO connections
+              '#FF0000'  // Red for same-STO connections
+            ],
+            'line-width': 2,
+            'line-opacity': 0.8
           }
         });
 
@@ -805,28 +938,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
-          const coordinates = e.lngLat;
 
-          new maplibregl.Popup()
-            .setLngLat(coordinates)
-            .setHTML(`
-              <div style="font-size: 12px; padding: 8px; max-width: 300px;">
-                <strong style="font-size: 14px; color: #FF6B35;">${props?.hostname || 'Unknown'}</strong><br/>
-                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>Manufacture:</strong> ${props?.manufacture || '-'}<br/>
-                <strong>Platform:</strong> ${props?.platform || '-'}<br/>
-                <strong>Version:</strong> ${props?.version || '-'}<br/>
-                <strong>Card Type:</strong> ${props?.tipe_card || '-'}<br/>
-                <strong>Capacity:</strong> ${props?.cap || '-'}<br/>
-                <strong>Port Used:</strong> ${props?.port_used || '0'}<br/>
-                <strong>Port Idle:</strong> ${props?.port_idle || '0'}<br/>
-                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>STO:</strong> ${props?.sto_l || '-'}<br/>
-                <strong>Witel:</strong> ${props?.witel || '-'}<br/>
-                <strong>Region:</strong> ${props?.reg || '-'}
-              </div>
-            `)
-            .addTo(map.current!);
+          // Open dialog instead of popup
+          setSelectedNodeData(props as Record<string, string>);
+          setIsNodeDialogOpen(true);
         }
       });
 
@@ -903,6 +1018,513 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
       if (map.current.getLayer('capacity-boundaries-hover')) {
         map.current.setLayoutProperty('capacity-boundaries-hover', 'visibility', visibility);
       }
+    }
+  };
+
+  // Add sirkit layer function with boundaries
+  const addSirkitLayer = () => {
+    if (!map.current || sirkitData.length === 0) {
+      return;
+    }
+
+    try {
+      // Remove existing sirkit layers if they exist
+      const layersToRemove = ['sirkit-points', 'sirkit-boundaries-fill', 'sirkit-boundaries-outline', 'sirkit-boundaries-hover'];
+      layersToRemove.forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+
+      if (map.current.getSource('sirkit')) {
+        map.current.removeSource('sirkit');
+      }
+      if (map.current.getSource('sirkit-boundaries')) {
+        map.current.removeSource('sirkit-boundaries');
+      }
+
+      // Group data by STO to get unique boundaries
+      const boundaryMap = new Map<string, Record<string, string>>();
+      sirkitData.forEach((item) => {
+        const stoKey = item.sto || 'unknown';
+        if (stoKey && item.boundary && !boundaryMap.has(stoKey)) {
+          boundaryMap.set(stoKey, item);
+        }
+      });
+
+      // Create GeoJSON features for boundaries
+      const boundaryFeatures = Array.from(boundaryMap.values())
+        .map((item) => {
+          const geometry = parseWKTPolygon(item.boundary);
+          if (!geometry) return null;
+
+          return {
+            type: 'Feature' as const,
+            properties: {
+              id: item.sto || 'unknown',
+              name: item.sto_l || item.sto || 'N/A',
+              witel: item.witel || 'N/A',
+              reg: item.reg || 'N/A',
+              types: item.types || 'N/A',
+              platform: item.platform || 'N/A',
+              color: generateRandomColor()
+            },
+            geometry
+          };
+        })
+        .filter(f => f !== null);
+
+      // Add boundary source and layers
+      if (boundaryFeatures.length > 0) {
+        map.current.addSource('sirkit-boundaries', {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: boundaryFeatures
+          }
+        });
+
+        // Add fill layer
+        map.current.addLayer({
+          id: 'sirkit-boundaries-fill',
+          type: 'fill',
+          source: 'sirkit-boundaries',
+          paint: {
+            'fill-color': ['get', 'color'],
+            'fill-opacity': 0.3
+          }
+        });
+
+        // Add outline layer
+        map.current.addLayer({
+          id: 'sirkit-boundaries-outline',
+          type: 'line',
+          source: 'sirkit-boundaries',
+          paint: {
+            'line-color': '#4ECDC4',
+            'line-width': 2
+          }
+        });
+
+        // Add hover effect
+        map.current.addLayer({
+          id: 'sirkit-boundaries-hover',
+          type: 'fill',
+          source: 'sirkit-boundaries',
+          paint: {
+            'fill-color': ['get', 'color'],
+            'fill-opacity': 0.5
+          },
+          filter: ['==', 'id', '']
+        });
+
+        // Add click handler for boundaries
+        map.current.on('click', 'sirkit-boundaries-fill', (e) => {
+          if (e.features && e.features.length > 0) {
+            const feature = e.features[0];
+            const props = feature.properties;
+            const coordinates = e.lngLat;
+
+            // Count circuits in this STO
+            const circuitCount = sirkitData.filter(
+              item => item.sto === props?.id
+            ).length;
+
+            new maplibregl.Popup()
+              .setLngLat(coordinates)
+              .setHTML(`
+                <div style="font-size: 12px; padding: 8px;">
+                  <strong style="font-size: 14px; color: #4ECDC4;">STO ${props?.name || 'Unknown'}</strong><br/>
+                  <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                  <strong>Witel:</strong> ${props?.witel || '-'}<br/>
+                  <strong>Region:</strong> ${props?.reg || '-'}<br/>
+                  <strong>Type:</strong> ${props?.types || '-'}<br/>
+                  <strong>Platform:</strong> ${props?.platform || '-'}<br/>
+                  <strong>Circuit Count:</strong> ${circuitCount}<br/>
+                </div>
+              `)
+              .addTo(map.current!);
+          }
+        });
+
+        // Add hover handler for boundaries
+        map.current.on('mouseenter', 'sirkit-boundaries-fill', (e) => {
+          if (e.features && e.features.length > 0) {
+            map.current!.setFilter('sirkit-boundaries-hover', ['==', 'id', e.features[0].properties?.id]);
+            map.current!.getCanvas().style.cursor = 'pointer';
+          }
+        });
+
+        map.current.on('mouseleave', 'sirkit-boundaries-fill', () => {
+          map.current!.setFilter('sirkit-boundaries-hover', ['==', 'id', '']);
+          map.current!.getCanvas().style.cursor = '';
+        });
+      }
+
+      // Create GeoJSON features for sirkit points
+      const pointFeatures = sirkitData.map((item) => ({
+        type: 'Feature' as const,
+        properties: {
+          node: item.node || 'N/A',
+          sto: item.sto || 'N/A',
+          sto_l: item.sto_l || 'N/A',
+          witel: item.witel || 'N/A',
+          reg: item.reg || 'N/A',
+          types: item.types || 'N/A',
+          platform: item.platform || 'N/A',
+          sap_descp: item.sap_descp || 'N/A',
+          ipadd_v4: item.ipadd_v4 || 'N/A',
+          me_akses: item.me_akses || 'N/A',
+          oltname: item.oltname || 'N/A',
+          manufacture: item.manufacture || 'N/A',
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [parseFloat(item.longitude), parseFloat(item.latitude)]
+        }
+      }));
+
+      // Add points source
+      map.current.addSource('sirkit', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: pointFeatures
+        }
+      });
+
+      // Add circle layer for sirkit points
+      map.current.addLayer({
+        id: 'sirkit-points',
+        type: 'circle',
+        source: 'sirkit',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': '#4ECDC4',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#FFFFFF',
+          'circle-opacity': 0.9
+        }
+      });
+
+      // Add click handler for points
+      map.current.on('click', 'sirkit-points', (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+
+          // Open dialog instead of popup
+          setSelectedNodeData(props as Record<string, string>);
+          setIsNodeDialogOpen(true);
+        }
+      });
+
+      // Add hover handler for points
+      map.current.on('mouseenter', 'sirkit-points', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'sirkit-points', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+    } catch (_error) {
+      alert(`Error adding sirkit layer: ${_error}`);
+    }
+  };
+
+  // Toggle sirkit layer visibility
+  const toggleSirkitLayer = () => {
+    if (!map.current) return;
+
+    const newVisibility = !showSirkitLayer;
+    setShowSirkitLayer(newVisibility);
+
+    if (newVisibility && !map.current.getLayer('sirkit-points')) {
+      // Add layer if it doesn't exist
+      addSirkitLayer();
+    } else {
+      // Toggle visibility
+      const visibility = newVisibility ? 'visible' : 'none';
+
+      if (map.current.getLayer('sirkit-points')) {
+        map.current.setLayoutProperty('sirkit-points', 'visibility', visibility);
+      }
+      if (map.current.getLayer('sirkit-boundaries-fill')) {
+        map.current.setLayoutProperty('sirkit-boundaries-fill', 'visibility', visibility);
+      }
+      if (map.current.getLayer('sirkit-boundaries-outline')) {
+        map.current.setLayoutProperty('sirkit-boundaries-outline', 'visibility', visibility);
+      }
+      if (map.current.getLayer('sirkit-boundaries-hover')) {
+        map.current.setLayoutProperty('sirkit-boundaries-hover', 'visibility', visibility);
+      }
+    }
+  };
+
+  // Add multilayer map function
+  const addMultilayerMapLayer = () => {
+    if (!map.current || !multilayerMapData) {
+      return;
+    }
+
+    try {
+      // Remove existing layers if they exist
+      const layersToRemove = [
+        'multilayer-points',
+        'multilayer-polygons-fill',
+        'multilayer-polygons-outline',
+        'multilayer-polygons-hover',
+        'multilayer-lines',
+        'multilayer-lines-glow'
+      ];
+      layersToRemove.forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+
+      if (map.current.getSource('multilayer-map')) {
+        map.current.removeSource('multilayer-map');
+      }
+
+      // Add source with all features
+      map.current.addSource('multilayer-map', {
+        type: 'geojson',
+        data: multilayerMapData
+      });
+
+      // Add polygon fill layer
+      map.current.addLayer({
+        id: 'multilayer-polygons-fill',
+        type: 'fill',
+        source: 'multilayer-map',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: {
+          'fill-color': '#9B59B6',
+          'fill-opacity': 0.4
+        }
+      });
+
+      // Add polygon outline layer
+      map.current.addLayer({
+        id: 'multilayer-polygons-outline',
+        type: 'line',
+        source: 'multilayer-map',
+        filter: ['==', ['geometry-type'], 'Polygon'],
+        paint: {
+          'line-color': '#8E44AD',
+          'line-width': 2
+        }
+      });
+
+      // Add polygon hover effect
+      map.current.addLayer({
+        id: 'multilayer-polygons-hover',
+        type: 'fill',
+        source: 'multilayer-map',
+        filter: ['all', ['==', ['geometry-type'], 'Polygon'], ['==', ['get', 'hostname'], '']],
+        paint: {
+          'fill-color': '#9B59B6',
+          'fill-opacity': 0.7
+        }
+      });
+
+      // Add line glow layer with status-based colors
+      map.current.addLayer({
+        id: 'multilayer-lines-glow',
+        type: 'line',
+        source: 'multilayer-map',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'status'],
+            'good', '#2ECC71',
+            'medium', '#F39C12',
+            'low', '#E74C3C',
+            '#3498DB' // default color
+          ],
+          'line-width': 10,
+          'line-opacity': 0.3,
+          'line-blur': 6
+        }
+      });
+
+      // Add line layer with status-based colors
+      map.current.addLayer({
+        id: 'multilayer-lines',
+        type: 'line',
+        source: 'multilayer-map',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'status'],
+            'good', '#2ECC71',
+            'medium', '#F39C12',
+            'low', '#E74C3C',
+            '#2980B9' // default color
+          ],
+          'line-width': 4,
+          'line-opacity': 0.8
+        }
+      });
+
+      // Add points layer with vendor-based colors
+      map.current.addLayer({
+        id: 'multilayer-points',
+        type: 'circle',
+        source: 'multilayer-map',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-radius': 10,
+          'circle-color': [
+            'match',
+            ['get', 'vendor'],
+            'Cisco', '#1BA1E2',
+            'Huawei', '#E74C3C',
+            'Nokia', '#27AE60',
+            '#999999' // default color
+          ],
+          'circle-stroke-width': 3,
+          'circle-stroke-color': '#FFFFFF',
+          'circle-opacity': 0.9
+        }
+      });
+
+      // Add click handler for polygons
+      map.current.on('click', 'multilayer-polygons-fill', (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-size: 12px; padding: 8px;">
+                <strong style="font-size: 14px; color: #9B59B6;">Polygon Area</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>Hostname:</strong> ${props?.hostname || 'N/A'}<br/>
+                <strong>Witel:</strong> ${props?.witel || 'N/A'}<br/>
+                <strong>Type Area:</strong> ${props?.type_area || 'N/A'}
+              </div>
+            `)
+            .addTo(map.current!);
+        }
+      });
+
+      // Add click handler for points
+      map.current.on('click', 'multilayer-points', (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+
+          // Open dialog instead of popup
+          setSelectedNodeData(props as Record<string, string>);
+          setIsNodeDialogOpen(true);
+        }
+      });
+
+      // Add hover handlers
+      map.current.on('mouseenter', 'multilayer-polygons-fill', (e) => {
+        if (e.features && e.features.length > 0) {
+          map.current!.setFilter('multilayer-polygons-hover', [
+            'all',
+            ['==', ['geometry-type'], 'Polygon'],
+            ['==', ['get', 'hostname'], e.features[0].properties?.hostname || '']
+          ]);
+          map.current!.getCanvas().style.cursor = 'pointer';
+        }
+      });
+
+      map.current.on('mouseleave', 'multilayer-polygons-fill', () => {
+        map.current!.setFilter('multilayer-polygons-hover', [
+          'all',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['==', ['get', 'hostname'], '']
+        ]);
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+      // Add click handler for lines
+      map.current.on('click', 'multilayer-lines', (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          const statusColor = props?.status === 'good' ? '#2ECC71' :
+            props?.status === 'medium' ? '#F39C12' :
+              props?.status === 'low' ? '#E74C3C' : '#2980B9';
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-size: 12px; padding: 8px;">
+                <strong style="font-size: 14px; color: ${statusColor};">🔗 ${props?.name || 'Connection Line'}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 600; text-transform: uppercase;">${props?.status || 'N/A'}</span><br/>
+              </div>
+            `)
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on('mouseenter', 'multilayer-points', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'multilayer-points', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+      map.current.on('mouseenter', 'multilayer-lines', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'multilayer-lines', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+      // eslint-disable-next-line no-console
+      console.log('Multilayer map layer added successfully');
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error adding multilayer map layer:', error);
+      alert(`Error adding multilayer map layer: ${error}`);
+    }
+  };
+
+  // Toggle multilayer map visibility
+  const toggleMultilayerMapLayer = () => {
+    if (!map.current) return;
+
+    const newVisibility = !showMultilayerMap;
+    setShowMultilayerMap(newVisibility);
+
+    if (newVisibility && !map.current.getLayer('multilayer-points')) {
+      // Add layer if it doesn't exist
+      addMultilayerMapLayer();
+    } else {
+      // Toggle visibility
+      const visibility = newVisibility ? 'visible' : 'none';
+
+      const layers = [
+        'multilayer-points',
+        'multilayer-polygons-fill',
+        'multilayer-polygons-outline',
+        'multilayer-polygons-hover',
+        'multilayer-lines',
+        'multilayer-lines-glow'
+      ];
+
+      layers.forEach(layerId => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.setLayoutProperty(layerId, 'visibility', visibility);
+        }
+      });
     }
   };
 
@@ -1107,22 +1729,43 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           >
             <FiLayers /> {showKabupatenLayer ? 'Hide' : 'Show'} Kabupaten
           </button>
-          <button
-            className={`button ${showCapacityLayer ? 'layer-btn-active-kabupaten' : 'layer-btn'}`}
-            onClick={toggleCapacityLayer}
-            title={showCapacityLayer ? 'Hide Capacity Layer' : 'Show Capacity Layer'}
-            disabled={capacityData.length === 0}
-          >
-            <FiLayers /> {showCapacityLayer ? 'Hide' : 'Show'} Capacity
-          </button>
-          <button
-            className={`button ${showSigmaLayer ? 'layer-btn-active-kabupaten' : 'layer-btn'}`}
-            onClick={toggleSigmaLayer}
-            title={showSigmaLayer ? 'Hide Sigma Layer' : 'Show Sigma Layer'}
-            disabled={!airportsData}
-          >
-            <FiLayers /> {showSigmaLayer ? 'Hide' : 'Show'} Sigma
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FiLayers />
+            <select
+              className="layer-select"
+              value={selectedLayer}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedLayer(value);
+
+                // Hide all layers first
+                if (showCapacityLayer) toggleCapacityLayer();
+                if (showSigmaLayer) toggleSigmaLayer();
+                if (showSirkitLayer) toggleSirkitLayer();
+                if (showMultilayerMap) toggleMultilayerMapLayer();
+
+                // Show selected layer
+                if (value === 'capacity' && !showCapacityLayer) toggleCapacityLayer();
+                else if (value === 'sigma' && !showSigmaLayer) toggleSigmaLayer();
+                else if (value === 'sirkit' && !showSirkitLayer) toggleSirkitLayer();
+                else if (value === 'multilayer' && !showMultilayerMap) toggleMultilayerMapLayer();
+              }}
+            >
+              <option value="none">Pilih Layer</option>
+              <option value="capacity" disabled={capacityData.length === 0}>
+                Capacity (Cap Data) {capacityData.length === 0 ? '(Loading...)' : `(${capacityData.length} points)`}
+              </option>
+              <option value="sirkit" disabled={sirkitData.length === 0}>
+                Sirkit (Circuit + Boundary) {sirkitData.length === 0 ? '(Loading...)' : `(${sirkitData.length} circuits)`}
+              </option>
+              <option value="sigma" disabled={!airportsData}>
+                Sigma (Airports Graph) {!airportsData ? '(Loading...)' : ''}
+              </option>
+              <option value="multilayer" disabled={!multilayerMapData}>
+                Multilayer Map (GeoJSON) {!multilayerMapData ? '(Loading...)' : ''}
+              </option>
+            </select>
+          </div>
           <button className="button upload-btn" onClick={() => setIsModalOpen(true)}>
             <FiUpload /> Tambah Data
           </button>
@@ -1143,7 +1786,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
           <strong>Capacity Points:</strong> {capacityData.length}
         </div>
         <div className="stat-item">
+          <strong>Sirkit Points:</strong> {sirkitData.length}
+        </div>
+        <div className="stat-item">
           <strong>Airports (Sigma):</strong> {airportsData ? airportsData.nodes.length : 'Loading...'}
+        </div>
+        <div className="stat-item">
+          <strong>Multilayer Features:</strong> {multilayerMapData ? multilayerMapData.features.length : 'Loading...'}
         </div>
         {isLoadingDefault && (
           <div className="stat-item" style={{ color: '#e22653' }}>
@@ -1162,12 +1811,60 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
             pointerEvents: showSigmaLayer ? 'auto' : 'none'
           }}
         />
+
+        {/* Legend for Multilayer Map */}
+        {showMultilayerMap && (
+          <div className="map-legend">
+            <h4>📊 Legend</h4>
+
+            <div className="legend-section">
+              <div className="legend-section-title">Vendor</div>
+              <div className="legend-item">
+                <div className="legend-color vendor-cisco"></div>
+                <span className="legend-label">Cisco</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color vendor-huawei"></div>
+                <span className="legend-label">Huawei</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color vendor-nokia"></div>
+                <span className="legend-label">Nokia</span>
+              </div>
+            </div>
+
+            <div className="legend-section">
+              <div className="legend-section-title">Connection Status</div>
+              <div className="legend-item">
+                <div className="legend-line status-good"></div>
+                <span className="legend-label">Good</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-line status-medium"></div>
+                <span className="legend-label">Medium</span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-line status-low"></div>
+                <span className="legend-label">Low</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <CSVUploadModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onUpload={handleCSVUpload}
+      />
+
+      <NodeDetailDialog
+        isOpen={isNodeDialogOpen}
+        onClose={() => {
+          setIsNodeDialogOpen(false);
+          setSelectedNodeData(null);
+        }}
+        nodeData={selectedNodeData}
       />
     </div>
   );
