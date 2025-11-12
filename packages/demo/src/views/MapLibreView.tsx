@@ -65,7 +65,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
   const [airportsData, setAirportsData] = useState<SerializedGraph | null>(null);
   const [showSirkitLayer, setShowSirkitLayer] = useState(false);
   const [sirkitData, setSirkitData] = useState<Record<string, string>[]>([]);
-  const [selectedLayer, setSelectedLayer] = useState<string>('none');
+  const [selectedLayer, setSelectedLayer] = useState<string>('multilayer');
   const [showMultilayerMap, setShowMultilayerMap] = useState(false);
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
   const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
@@ -209,6 +209,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
         setMultilayerMapData(geojson);
         // eslint-disable-next-line no-console
         console.log('Multilayer map data loaded:', geojson);
+        // Show multilayer map by default after loading
+        setShowMultilayerMap(true);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error('Error loading multilayer map data:', error);
@@ -1698,6 +1700,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = ({ onClose }) => {
       addKabupatenLayer();
     }
   }, [mapLoaded, kabupatenLoaded]);
+
+  // Add multilayer map layer when data is loaded
+  useEffect(() => {
+    if (mapLoaded && multilayerMapData && showMultilayerMap && map.current) {
+      addMultilayerMapLayer();
+    }
+  }, [mapLoaded, multilayerMapData, showMultilayerMap]);
 
   // Update map when nodes change
   useEffect(() => {
