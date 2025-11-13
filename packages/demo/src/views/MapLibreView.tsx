@@ -17,9 +17,11 @@ import { DataTablePanel } from "../components/DataTablePanel";
 import { DraggableNetworkHierarchy } from "../components/DraggableNetworkHierarchy";
 import { LeftSidebar } from "../components/LeftSidebar";
 import { Legend } from "../components/Legend";
+import { LinkDetailsPanel } from "../components/LinkDetailsPanel";
 import { NodeDetailDialog } from "../components/NodeDetailDialog";
 import { SettingsPage } from "../components/SettingsPage";
 import Toast, { ToastType } from "../components/Toast";
+import { TopologyDrawer } from "../components/TopologyDrawer";
 // eslint-disable-next-line import/extensions
 import { kabupatenData } from "../data/kabupaten.data";
 // eslint-disable-next-line import/extensions
@@ -93,6 +95,23 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
   const [_showTopologyDrawer, _setShowTopologyDrawer] = useState(true);
+  
+  // Link and Topology drawer states
+  const [showLinkDetails, setShowLinkDetails] = useState(false);
+  const [selectedLink, setSelectedLink] = useState<{
+    from: string;
+    to: string;
+    description?: string;
+    bandwidth_mbps?: number;
+    utilization?: number;
+    latency?: number;
+    packetLoss?: number;
+    linkCount?: number;
+    totalCapacity?: string;
+    type?: string;
+  } | null>(null);
+  const [showTopologyDrawer, setShowTopologyDrawer] = useState(false);
+  const [topologyConnection, setTopologyConnection] = useState<{ from: string; to: string } | null>(null);
 
   // New state for hierarchy and navigation (matching App.tsx)
   const [currentLevel, setCurrentLevel] = useState<HierarchyLevel>("national");
@@ -1019,15 +1038,50 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points
+      // Add click handler for points - Show NodeDetailDialog and TopologyDrawer
       map.current.on("click", "capacity-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Open dialog instead of popup
+          // Open node detail dialog
           setSelectedNodeData(props as Record<string, string>);
           setIsNodeDialogOpen(true);
+
+          // Also show topology drawer for the node
+          const hostname = props?.hostname || "Node";
+          setTopologyConnection({ from: hostname, to: "Network" });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Add click handler for capacity lines - Show LinkDetailsPanel and TopologyDrawer
+      map.current.on("click", "capacity-lines", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+
+          const from = props?.from || "Node A";
+          const to = props?.to || "Node B";
+
+          // Set link details for LinkDetailsPanel
+          setSelectedLink({
+            from,
+            to,
+            description: `${from} → ${to}`,
+            bandwidth_mbps: 10000, // 10G default
+            utilization: 70 + Math.random() * 20,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: 2,
+            totalCapacity: "10G",
+            type: "L2_AGGREGATION",
+          });
+          setShowLinkDetails(true);
+
+          // Set topology connection for TopologyDrawer
+          setTopologyConnection({ from, to });
+          setShowTopologyDrawer(true);
         }
       });
 
@@ -1294,15 +1348,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points
+      // Add click handler for points - Show NodeDetailDialog and TopologyDrawer
       map.current.on("click", "sirkit-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Open dialog instead of popup
+          // Open node detail dialog
           setSelectedNodeData(props as Record<string, string>);
           setIsNodeDialogOpen(true);
+
+          // Also show topology drawer for the node
+          const hostname = props?.node || props?.hostname || "Node";
+          setTopologyConnection({ from: hostname, to: "Network" });
+          setShowTopologyDrawer(true);
         }
       });
 
@@ -1512,15 +1571,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
       });
 
-      // Add click handler for points
+      // Add click handler for points - Show NodeDetailDialog and TopologyDrawer
       map.current.on("click", "multilayer-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Open dialog instead of popup
+          // Open node detail dialog
           setSelectedNodeData(props as Record<string, string>);
           setIsNodeDialogOpen(true);
+
+          // Also show topology drawer for the node
+          const hostname = props?.hostname || "Node";
+          setTopologyConnection({ from: hostname, to: "Network" });
+          setShowTopologyDrawer(true);
         }
       });
 
@@ -1545,34 +1609,35 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         map.current!.getCanvas().style.cursor = "";
       });
 
-      // Add click handler for lines
+      // Add click handler for lines - Show LinkDetailsPanel and TopologyDrawer
       map.current.on("click", "multilayer-lines", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
-          const coordinates = e.lngLat;
 
-          const statusColor =
-            props?.status === "good"
-              ? "#2ECC71"
-              : props?.status === "medium"
-                ? "#F39C12"
-                : props?.status === "low"
-                  ? "#E74C3C"
-                  : "#2980B9";
+          // Extract from/to from the name or use hostname
+          const nameParts = (props?.name || "").split("-");
+          const from = nameParts[0] || props?.hostname || "Node A";
+          const to = nameParts[1] || "Node B";
 
-          new maplibregl.Popup()
-            .setLngLat(coordinates)
-            .setHTML(
-              `
-              <div style="font-size: 12px; padding: 8px;">
-                <strong style="font-size: 14px; color: ${statusColor};">🔗 ${props?.name || "Connection Line"}</strong><br/>
-                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 600; text-transform: uppercase;">${props?.status || "N/A"}</span><br/>
-              </div>
-            `,
-            )
-            .addTo(map.current!);
+          // Set link details for LinkDetailsPanel
+          setSelectedLink({
+            from,
+            to,
+            description: props?.name || `${from} → ${to}`,
+            bandwidth_mbps: 10000, // 10G default
+            utilization: props?.status === "good" ? 65 : props?.status === "medium" ? 75 : 85,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: 2,
+            totalCapacity: "10G",
+            type: "L2_AGGREGATION",
+          });
+          setShowLinkDetails(true);
+
+          // Set topology connection for TopologyDrawer
+          setTopologyConnection({ from, to });
+          setShowTopologyDrawer(true);
         }
       });
 
@@ -2181,17 +2246,39 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       <CSVUploadModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUpload={handleCSVUpload} />
 
-      <NodeDetailDialog
+      {/* <NodeDetailDialog
         isOpen={isNodeDialogOpen}
         onClose={() => {
           setIsNodeDialogOpen(false);
           setSelectedNodeData(null);
         }}
         nodeData={selectedNodeData}
-      />
+      /> */}
 
       {/* Toast Notifications */}
       {showToast && <Toast message={toastMessage} type={toastType} onClose={() => setShowToast(false)} />}
+
+      {/* Link Details Panel */}
+      {showLinkDetails && selectedLink && (
+        <LinkDetailsPanel
+          connection={selectedLink}
+          onClose={() => {
+            setShowLinkDetails(false);
+            setSelectedLink(null);
+          }}
+        />
+      )}
+
+      {/* Topology Drawer */}
+      {showTopologyDrawer && topologyConnection && (
+        <TopologyDrawer
+          connection={topologyConnection}
+          onClose={() => {
+            setShowTopologyDrawer(false);
+            setTopologyConnection(null);
+          }}
+        />
+      )}
     </div>
   );
 };
