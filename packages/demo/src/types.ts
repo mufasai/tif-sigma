@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface NodeData {
   hostname: string;
   manufacture: string;
@@ -81,4 +82,40 @@ export interface FiltersState {
   manufactures: Record<string, boolean>;
   regions: Record<string, boolean>;
   models: Record<string, boolean>;
+}
+
+
+export interface NetworkElement {
+  ne_id: string;
+  hostname: string;
+  site_name: string;
+  area: string;
+  lat: number;
+  long: number;
+  ospf: string;
+  ip_address: string;
+  device_type: string;
+  vendor: string;
+  managed_by: string;
+  network_interface: string;
+  active_status: number;
+  uplink_ne?: string;
+  port?: string;
+  software_version?: string;
+  project?: string;
+  deployment?: string;
+  update?: string;
+  remark?: string;
+}
+
+export interface AreaConnection {
+  from: string;
+  to: string;
+  totalCapacity: number;
+  linkCount: number;
+  utilization: number;
+  coords: {
+    from: [number, number];
+    to: [number, number];
+  };
 }

@@ -114,9 +114,9 @@
 }
 
 .maplibre-view .layer-btn-active {
-  background: #4ECDC4;
+  background: #4ecdc4;
   color: white;
-  border-color: #4ECDC4;
+  border-color: #4ecdc4;
 }
 
 .maplibre-view .layer-btn-active:hover {
@@ -126,14 +126,14 @@
 }
 
 .maplibre-view .layer-btn-active-kabupaten {
-  background: #3B82F6;
+  background: #3b82f6;
   color: white;
-  border-color: #3B82F6;
+  border-color: #3b82f6;
 }
 
 .maplibre-view .layer-btn-active-kabupaten:hover {
-  background: #2563EB;
-  border-color: #2563EB;
+  background: #2563eb;
+  border-color: #2563eb;
   opacity: 1;
 }
 
@@ -420,26 +420,26 @@
 
 /* Vendor colors */
 .vendor-cisco {
-  background-color: #1BA1E2;
+  background-color: #1ba1e2;
 }
 
 .vendor-huawei {
-  background-color: #E74C3C;
+  background-color: #e74c3c;
 }
 
 .vendor-nokia {
-  background-color: #27AE60;
+  background-color: #27ae60;
 }
 
 /* Status colors */
 .status-good {
-  background-color: #2ECC71;
+  background-color: #2ecc71;
 }
 
 .status-medium {
-  background-color: #F39C12;
+  background-color: #f39c12;
 }
 
 .status-low {
-  background-color: #E74C3C;
+  background-color: #e74c3c;
 }
