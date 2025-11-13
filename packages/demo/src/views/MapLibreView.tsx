@@ -18,7 +18,6 @@ import { DraggableNetworkHierarchy } from "../components/DraggableNetworkHierarc
 import { LeftSidebar } from "../components/LeftSidebar";
 import { Legend } from "../components/Legend";
 import { LinkDetailsPanel } from "../components/LinkDetailsPanel";
-import { NodeDetailDialog } from "../components/NodeDetailDialog";
 import { SettingsPage } from "../components/SettingsPage";
 import Toast, { ToastType } from "../components/Toast";
 import { TopologyDrawer } from "../components/TopologyDrawer";
@@ -89,8 +88,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [selectedLayer, setSelectedLayer] = useState<string>("multilayer");
   const [showMultilayerMap, setShowMultilayerMap] = useState(false);
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
-  const [isNodeDialogOpen, setIsNodeDialogOpen] = useState(false);
-  const [selectedNodeData, setSelectedNodeData] = useState<Record<string, string> | null>(null);
   // Reserved for future topology features (matching App.tsx structure)
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
@@ -1038,17 +1035,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points - Show NodeDetailDialog and TopologyDrawer
+      // Add click handler for points - Show TopologyDrawer
       map.current.on("click", "capacity-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Open node detail dialog
-          setSelectedNodeData(props as Record<string, string>);
-          setIsNodeDialogOpen(true);
-
-          // Also show topology drawer for the node
+          // Show topology drawer for the node
           const hostname = props?.hostname || "Node";
           setTopologyConnection({ from: hostname, to: "Network" });
           setShowTopologyDrawer(true);
@@ -1348,17 +1341,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points - Show NodeDetailDialog and TopologyDrawer
+      // Add click handler for points - Show TopologyDrawer
       map.current.on("click", "sirkit-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Open node detail dialog
-          setSelectedNodeData(props as Record<string, string>);
-          setIsNodeDialogOpen(true);
-
-          // Also show topology drawer for the node
+          // Show topology drawer for the node
           const hostname = props?.node || props?.hostname || "Node";
           setTopologyConnection({ from: hostname, to: "Network" });
           setShowTopologyDrawer(true);
@@ -1571,17 +1560,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
       });
 
-      // Add click handler for points - Show NodeDetailDialog and TopologyDrawer
+      // Add click handler for points - Show TopologyDrawer
       map.current.on("click", "multilayer-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Open node detail dialog
-          setSelectedNodeData(props as Record<string, string>);
-          setIsNodeDialogOpen(true);
-
-          // Also show topology drawer for the node
+          // Show topology drawer for the node
           const hostname = props?.hostname || "Node";
           setTopologyConnection({ from: hostname, to: "Network" });
           setShowTopologyDrawer(true);
@@ -2245,15 +2230,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       </div>
 
       <CSVUploadModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUpload={handleCSVUpload} />
-
-      {/* <NodeDetailDialog
-        isOpen={isNodeDialogOpen}
-        onClose={() => {
-          setIsNodeDialogOpen(false);
-          setSelectedNodeData(null);
-        }}
-        nodeData={selectedNodeData}
-      /> */}
 
       {/* Toast Notifications */}
       {showToast && <Toast message={toastMessage} type={toastType} onClose={() => setShowToast(false)} />}

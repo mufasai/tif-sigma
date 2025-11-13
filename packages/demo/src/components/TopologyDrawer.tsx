@@ -1,5 +1,7 @@
 import { X, ChevronLeft, ChevronRight, Network, GitBranch, Activity, Move } from 'lucide-react';
 import React, { useState, useRef, useEffect } from 'react';
+import Graph from 'graphology';
+import Sigma from 'sigma';
 
 interface TopologyDrawerProps {
   connection: {
@@ -15,6 +17,8 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const drawerRef = useRef<HTMLDivElement>(null);
+  const sigmaContainerRef = useRef<HTMLDivElement>(null);
+  const sigmaInstanceRef = useRef<Sigma | null>(null);
 
   // Initialize position to center bottom on mount
   useEffect(() => {
@@ -71,43 +75,189 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     };
   }, [isDragging, dragOffset]);
 
-  // Mock topology data
-  const topologyNodes = [
-    { id: 'pe1', label: `${connection.from} PE1`, type: 'PE', status: 'active', x: 100, y: 150 },
-    { id: 'pe2', label: `${connection.to} PE2`, type: 'PE', status: 'active', x: 500, y: 150 },
-    { id: 'agg1', label: `${connection.from} AGG1`, type: 'AGG', status: 'active', x: 150, y: 250 },
-    { id: 'agg2', label: `${connection.to} AGG1`, type: 'AGG', status: 'active', x: 450, y: 250 },
-    { id: 'access1', label: `${connection.from} ACC1`, type: 'ACCESS', status: 'active', x: 100, y: 350 },
-    { id: 'access2', label: `${connection.from} ACC2`, type: 'ACCESS', status: 'active', x: 200, y: 350 },
-    { id: 'access3', label: `${connection.to} ACC1`, type: 'ACCESS', status: 'active', x: 400, y: 350 },
-    { id: 'access4', label: `${connection.to} ACC2`, type: 'ACCESS', status: 'active', x: 500, y: 350 },
-  ];
+  // Initialize Sigma.js topology visualization
+  useEffect(() => {
+    if (!sigmaContainerRef.current || isCollapsed) return;
 
-  const topologyLinks = [
-    { from: 'pe1', to: 'pe2', capacity: '100G', utilization: 72 },
-    { from: 'pe1', to: 'agg1', capacity: '100G', utilization: 65 },
-    { from: 'pe2', to: 'agg2', capacity: '100G', utilization: 68 },
-    { from: 'agg1', to: 'agg2', capacity: '50G', utilization: 55 },
-    { from: 'agg1', to: 'access1', capacity: '10G', utilization: 45 },
-    { from: 'agg1', to: 'access2', capacity: '10G', utilization: 48 },
-    { from: 'agg2', to: 'access3', capacity: '10G', utilization: 42 },
-    { from: 'agg2', to: 'access4', capacity: '10G', utilization: 50 },
-  ];
+    // Create graph
+    const graph = new Graph();
 
-  const getNodeColor = (type: string) => {
-    switch (type) {
-      case 'PE': return '#3b82f6'; // blue
-      case 'AGG': return '#8b5cf6'; // purple
-      case 'ACCESS': return '#10b981'; // green
-      default: return '#6b7280';
+    // Define topology structure with hierarchical layout
+    // Layer 1: PE nodes (top)
+    const pe1Id = 'pe1';
+    const pe2Id = 'pe2';
+    graph.addNode(pe1Id, {
+      label: `${connection.from} PE1`,
+      x: -3,
+      y: 3,
+      size: 20,
+      color: '#3b82f6',
+      type: 'PE',
+    });
+    graph.addNode(pe2Id, {
+      label: `${connection.to} PE2`,
+      x: 3,
+      y: 3,
+      size: 20,
+      color: '#3b82f6',
+      type: 'PE',
+    });
+
+    // Layer 2: AGG nodes (middle)
+    const agg1Id = 'agg1';
+    const agg2Id = 'agg2';
+    graph.addNode(agg1Id, {
+      label: `${connection.from} AGG1`,
+      x: -3,
+      y: 0,
+      size: 18,
+      color: '#8b5cf6',
+      type: 'AGG',
+    });
+    graph.addNode(agg2Id, {
+      label: `${connection.to} AGG1`,
+      x: 3,
+      y: 0,
+      size: 18,
+      color: '#8b5cf6',
+      type: 'AGG',
+    });
+
+    // Layer 3: ACCESS nodes (bottom)
+    const access1Id = 'access1';
+    const access2Id = 'access2';
+    const access3Id = 'access3';
+    const access4Id = 'access4';
+    graph.addNode(access1Id, {
+      label: `${connection.from} ACC1`,
+      x: -4,
+      y: -3,
+      size: 15,
+      color: '#10b981',
+      type: 'ACCESS',
+    });
+    graph.addNode(access2Id, {
+      label: `${connection.from} ACC2`,
+      x: -2,
+      y: -3,
+      size: 15,
+      color: '#10b981',
+      type: 'ACCESS',
+    });
+    graph.addNode(access3Id, {
+      label: `${connection.to} ACC1`,
+      x: 2,
+      y: -3,
+      size: 15,
+      color: '#10b981',
+      type: 'ACCESS',
+    });
+    graph.addNode(access4Id, {
+      label: `${connection.to} ACC2`,
+      x: 4,
+      y: -3,
+      size: 15,
+      color: '#10b981',
+      type: 'ACCESS',
+    });
+
+    // Add edges with capacity labels
+    // PE to PE (backbone)
+    graph.addEdge(pe1Id, pe2Id, {
+      size: 4,
+      color: '#3b82f6',
+      label: '100G',
+      type: 'line',
+    });
+
+    // PE to AGG
+    graph.addEdge(pe1Id, agg1Id, {
+      size: 3,
+      color: '#10b981',
+      label: '100G',
+      type: 'line',
+    });
+    graph.addEdge(pe2Id, agg2Id, {
+      size: 3,
+      color: '#10b981',
+      label: '100G',
+      type: 'line',
+    });
+
+    // AGG to AGG
+    graph.addEdge(agg1Id, agg2Id, {
+      size: 3,
+      color: '#10b981',
+      label: '50G',
+      type: 'line',
+    });
+
+    // AGG to ACCESS
+    graph.addEdge(agg1Id, access1Id, {
+      size: 2,
+      color: '#10b981',
+      label: '10G',
+      type: 'line',
+    });
+    graph.addEdge(agg1Id, access2Id, {
+      size: 2,
+      color: '#10b981',
+      label: '10G',
+      type: 'line',
+    });
+    graph.addEdge(agg2Id, access3Id, {
+      size: 2,
+      color: '#10b981',
+      label: '10G',
+      type: 'line',
+    });
+    graph.addEdge(agg2Id, access4Id, {
+      size: 2,
+      color: '#10b981',
+      label: '10G',
+      type: 'line',
+    });
+
+    // Initialize Sigma
+    try {
+      sigmaInstanceRef.current = new Sigma(graph, sigmaContainerRef.current, {
+        renderEdgeLabels: true,
+        defaultNodeColor: '#999999',
+        defaultEdgeColor: '#CCCCCC',
+        labelSize: 11,
+        labelWeight: '600',
+        labelColor: { color: '#374151' },
+        edgeLabelSize: 10,
+        edgeLabelWeight: '500',
+        edgeLabelColor: { color: '#6b7280' },
+        enableEdgeEvents: true,
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error initializing Sigma:', error);
     }
+
+    return () => {
+      if (sigmaInstanceRef.current) {
+        sigmaInstanceRef.current.kill();
+        sigmaInstanceRef.current = null;
+      }
+    };
+  }, [connection.from, connection.to, isCollapsed]);
+
+  // Count nodes and links from graph
+  const getGraphStats = () => {
+    if (!sigmaInstanceRef.current) {
+      return { nodes: 8, links: 8 };
+    }
+    const graph = sigmaInstanceRef.current.getGraph();
+    return {
+      nodes: graph.order,
+      links: graph.size,
+    };
   };
 
-  const getLinkColor = (utilization: number) => {
-    if (utilization > 85) return '#f59e0b';
-    if (utilization > 70) return '#3b82f6';
-    return '#10b981';
-  };
+  const stats = getGraphStats();
 
   if (isCollapsed) {
     return (
@@ -257,99 +407,17 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
             borderRadius: '12px',
             border: '1px solid rgba(229, 231, 235, 0.5)',
             padding: '16px',
+            height: '400px',
+            position: 'relative',
           }}>
-            <svg width="100%" height="400" viewBox="0 0 600 400">
-              {/* Links */}
-              {topologyLinks.map((link, idx) => {
-                const fromNode = topologyNodes.find(n => n.id === link.from);
-                const toNode = topologyNodes.find(n => n.id === link.to);
-                if (!fromNode || !toNode) return null;
-
-                const color = getLinkColor(link.utilization);
-
-                return (
-                  <g key={idx}>
-                    <line
-                      x1={fromNode.x}
-                      y1={fromNode.y}
-                      x2={toNode.x}
-                      y2={toNode.y}
-                      stroke={color}
-                      strokeWidth="2"
-                      strokeOpacity="0.6"
-                    />
-                    {/* Capacity label */}
-                    <text
-                      x={(fromNode.x + toNode.x) / 2}
-                      y={(fromNode.y + toNode.y) / 2 - 5}
-                      textAnchor="middle"
-                      fontSize="9px"
-                      fill="#6b7280"
-                    >
-                      {link.capacity}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* Nodes */}
-              {topologyNodes.map((node) => {
-                const color = getNodeColor(node.type);
-
-                return (
-                  <g key={node.id}>
-                    {/* Node circle */}
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r="20"
-                      fill={color}
-                      fillOpacity="0.2"
-                      stroke={color}
-                      strokeWidth="2"
-                    />
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r="8"
-                      fill={color}
-                    />
-
-                    {/* Status indicator */}
-                    {node.status === 'active' && (
-                      <circle
-                        cx={node.x + 6}
-                        cy={node.y - 6}
-                        r="3"
-                        fill="#10b981"
-                        stroke="white"
-                        strokeWidth="1"
-                      />
-                    )}
-
-                    {/* Label */}
-                    <text
-                      x={node.x}
-                      y={node.y + 35}
-                      textAnchor="middle"
-                      fontSize="10px"
-                      fill="#111827"
-                    >
-                      {node.label}
-                    </text>
-                    <text
-                      x={node.x}
-                      y={node.y + 47}
-                      textAnchor="middle"
-                      fontSize="9px"
-                      fill="#6b7280"
-                    >
-                      {node.type}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+            <div 
+              ref={sigmaContainerRef} 
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                borderRadius: '8px',
+              }}
+            />
           </div>
 
           {/* Stats */}
@@ -365,7 +433,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
                 <Network style={{ width: '12px', height: '12px', color: '#2563eb' }} />
                 <span style={{ fontSize: '10px', color: '#6b7280' }}>NODES</span>
               </div>
-              <div style={{ fontSize: '14px', color: '#111827' }}>{topologyNodes.length}</div>
+              <div style={{ fontSize: '14px', color: '#111827' }}>{stats.nodes}</div>
             </div>
             <div style={{
               background: 'rgba(255, 255, 255, 0.5)',
@@ -378,7 +446,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
                 <GitBranch style={{ width: '12px', height: '12px', color: '#9333ea' }} />
                 <span style={{ fontSize: '10px', color: '#6b7280' }}>LINKS</span>
               </div>
-              <div style={{ fontSize: '14px', color: '#111827' }}>{topologyLinks.length}</div>
+              <div style={{ fontSize: '14px', color: '#111827' }}>{stats.links}</div>
             </div>
             <div style={{
               background: 'rgba(255, 255, 255, 0.5)',
