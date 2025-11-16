@@ -9832,14 +9832,7 @@
       "traffic_in": 76,
       "traffic_out": 13114
     },
-    {
-      "id": 1230,
-      "size": 1,
-      "source": "ME9-D1-MDC-3",
-      "target": "ME-D1-NTLA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
+    
     {
       "id": 1231,
       "size": 1,
@@ -12816,22 +12809,8 @@
       "traffic_in": 201591913,
       "traffic_out": 1431024288
     },
-    {
-      "id": 1603,
-      "size": 1,
-      "source": "ME9-D1-RAP-3",
-      "target": "ME-D1-NTLA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
-    {
-      "id": 1604,
-      "size": 1,
-      "source": "ME9-D1-RAP-3",
-      "target": "ME-D1-NTLA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
+     
+     
     {
       "id": 1605,
       "size": 1,
@@ -43728,70 +43707,7 @@
       "traffic_in": null,
       "traffic_out": null
     },
-    {
-      "id": 5467,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME-D1-UGDA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
-    {
-      "id": 5468,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME-D1-UGDA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
-    {
-      "id": 5469,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME-D1-PYB-3",
-      "traffic_in": 6426654678,
-      "traffic_out": 432349695
-    },
-    {
-      "id": 5470,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME-D1-PYB-3",
-      "traffic_in": 6429356679,
-      "traffic_out": 414326970
-    },
-    {
-      "id": 5471,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME-D1-PGTA",
-      "traffic_in": 1543,
-      "traffic_out": 701
-    },
-    {
-      "id": 5472,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME9-D1-RAP-3",
-      "traffic_in": 4096,
-      "traffic_out": 912440851
-    },
-    {
-      "id": 5473,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME9-D1-MDC-3",
-      "traffic_in": 13260833,
-      "traffic_out": 5056
-    },
-    {
-      "id": 5474,
-      "size": 1,
-      "source": "ME-D1-NTLA",
-      "target": "ME9-D1-DRIA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
+     
     {
       "id": 5475,
       "size": 1,
@@ -45160,14 +45076,7 @@
       "traffic_in": 566296671,
       "traffic_out": 102327163
     },
-    {
-      "id": 5646,
-      "size": 1,
-      "source": "ME-D1-PGTA",
-      "target": "ME-D1-NTLA",
-      "traffic_in": 0,
-      "traffic_out": 0
-    },
+    
     {
       "id": 5647,
       "size": 1,
@@ -47712,22 +47621,7 @@
       "traffic_in": null,
       "traffic_out": null
     },
-    {
-      "id": 5965,
-      "size": 1,
-      "source": "ME-D1-PYB-3",
-      "target": "ME-D1-NTLA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
-    {
-      "id": 5966,
-      "size": 1,
-      "source": "ME-D1-PYB-3",
-      "target": "ME-D1-NTLA",
-      "traffic_in": null,
-      "traffic_out": null
-    },
+     
     {
       "id": 5967,
       "size": 1,
@@ -57048,38 +56942,7 @@
       "traffic_in": null,
       "traffic_out": null
     },
-    {
-      "id": 7132,
-      "size": 1,
-      "source": "ME-D1-UGDA",
-      "target": "ME-D1-NTLA",
-      "traffic_in": 912252483,
-      "traffic_out": 4090
-    },
-    {
-      "id": 7133,
-      "size": 1,
-      "source": "ME-D1-UGDA",
-      "target": "ME-D1-NTLA",
-      "traffic_in": 4603,
-      "traffic_out": 40110613
-    },
-    {
-      "id": 7134,
-      "size": 1,
-      "source": "ME-D1-UGDA",
-      "target": "ME-D1-NTLA",
-      "traffic_in": 4330,
-      "traffic_out": 33869839
-    },
-    {
-      "id": 7135,
-      "size": 1,
-      "source": "ME-D1-UGDA",
-      "target": "ME-D1-NTLA",
-      "traffic_in": 4664,
-      "traffic_out": 13121620
-    },
+     
     {
       "id": 7136,
       "size": 1,
@@ -152770,14 +152633,7 @@
       "id": "ME-D1-BIRA",
       "size": 3,
       "label": "ME-D1-BIRA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R7.PGY.ASBR-TSEL.1",
-      "size": 3,
-      "label": "R7.PGY.ASBR-TSEL.1"
-    },
+    }, 
     {
       "x": 106.95652,
       "y": -6.36375,
@@ -152945,14 +152801,7 @@
       "id": "PE-D5-JBR-HSI",
       "size": 3,
       "label": "PE-D5-JBR-HSI"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D1-PYB-3",
-      "size": 3,
-      "label": "ME-D1-PYB-3"
-    },
+    }, 
     {
       "x": 131.27432,
       "y": -0.88265,
@@ -153372,14 +153221,7 @@
       "id": "ME-D2-SMR",
       "size": 3,
       "label": "ME-D2-SMR"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.TBS.PE-MOBILE.1",
-      "size": 3,
-      "label": "R2.TBS.PE-MOBILE.1"
-    },
+    }, 
     {
       "x": 104.05114,
       "y": 1.11527,
@@ -153561,14 +153403,7 @@
       "id": "ME-D6-SUA",
       "size": 3,
       "label": "ME-D6-SUA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D6-MRL",
-      "size": 3,
-      "label": "ME-D6-MRL"
-    },
+    }, 
     {
       "x": 110.4168115,
       "y": -6.9941902,
@@ -153883,14 +153718,7 @@
       "id": "ME-D3-BJR",
       "size": 3,
       "label": "ME-D3-BJR"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D1-DADA-TSEL",
-      "size": 3,
-      "label": "ME-D1-DADA-TSEL"
-    },
+    }, 
     {
       "x": 101.83539,
       "y": -3.36148,
@@ -153918,14 +153746,7 @@
       "id": "ME-D1-LBSA",
       "size": 3,
       "label": "ME-D1-LBSA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D2-SLP",
-      "size": 3,
-      "label": "DCN-D2-SLP"
-    },
+    }, 
     {
       "x": 98.39639,
       "y": 3.52889,
@@ -154240,14 +154061,7 @@
       "id": "R1.BTM.PE-MOBILE.1",
       "size": 3,
       "label": "R1.BTM.PE-MOBILE.1"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.BRN.ASBR-TSEL.1",
-      "size": 3,
-      "label": "R2.BRN.ASBR-TSEL.1"
-    },
+    }, 
     {
       "x": 107.076,
       "y": -6.27129,
@@ -154296,14 +154110,7 @@
       "id": "ME-D6-BNT",
       "size": 3,
       "label": "ME-D6-BNT"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.TSO.PE-MOBILE.1",
-      "size": 3,
-      "label": "R2.TSO.PE-MOBILE.1"
-    },
+    }, 
     {
       "x": 116.0976,
       "y": -8.58208,
@@ -154394,14 +154201,7 @@
       "id": "R1.PGP.PE-MOBILE.1",
       "size": 3,
       "label": "R1.PGP.PE-MOBILE.1"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.BRN.PE-MOBILE.2",
-      "size": 3,
-      "label": "R2.BRN.PE-MOBILE.2"
-    },
+    }, 
     {
       "x": 105.395,
       "y": -4.84527,
@@ -154555,14 +154355,7 @@
       "id": "ME-D1-SRWA",
       "size": 3,
       "label": "ME-D1-SRWA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R5.MLG.ASBR-TSEL.1",
-      "size": 3,
-      "label": "R5.MLG.ASBR-TSEL.1"
-    },
+    }, 
     {
       "x": 106.15513,
       "y": -6.10273,
@@ -154730,14 +154523,7 @@
       "id": "ME3-D2-KRT",
       "size": 3,
       "label": "ME3-D2-KRT"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D5-KD0-VPN",
-      "size": 3,
-      "label": "PE-D5-KD0-VPN"
-    },
+    },  
     {
       "x": 98.49674,
       "y": 3.10229,
@@ -154772,14 +154558,7 @@
       "id": "R6.PLK.PE-MOBILE.2",
       "size": 3,
       "label": "R6.PLK.PE-MOBILE.2"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D6-BTON-4",
-      "size": 3,
-      "label": "ME-D6-BTON-4"
-    },
+    }, 
     {
       "x": 101.19208,
       "y": 1.26754,
@@ -154793,28 +154572,14 @@
       "id": "ME-D1-KTUA",
       "size": 3,
       "label": "ME-D1-KTUA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D1-KON-3",
-      "size": 3,
-      "label": "ME-D1-KON-3"
-    },
+    }, 
     {
       "x": 106.1053,
       "y": -1.86139,
       "id": "ME-D1-SLTA",
       "size": 3,
       "label": "ME-D1-SLTA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D1-TJK-VPN",
-      "size": 3,
-      "label": "PE-D1-TJK-VPN"
-    },
+    }, 
     {
       "x": 106.81639,
       "y": -6.21932,
@@ -154996,14 +154761,7 @@
       "id": "ME-D2-STL",
       "size": 3,
       "label": "ME-D2-STL"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D1-MDC",
-      "size": 3,
-      "label": "DCN-D1-MDC"
-    },
+    }, 
     {
       "x": 107.62776,
       "y": -6.94196,
@@ -155031,14 +154789,7 @@
       "id": "R2.JT2.PE-SN.3",
       "size": 3,
       "label": "R2.JT2.PE-SN.3"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.TBS.ASBR-TSEL.1",
-      "size": 3,
-      "label": "R2.TBS.ASBR-TSEL.1"
-    },
+    }, 
     {
       "x": 106.79451,
       "y": -6.59208,
@@ -155199,14 +154950,7 @@
       "id": "PE-D6-PTK-HSI",
       "size": 3,
       "label": "PE-D6-PTK-HSI"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D6-SBL",
-      "size": 3,
-      "label": "ME-D6-SBL"
-    },
+    }, 
     {
       "x": 108.9432,
       "y": 0.37017,
@@ -155346,14 +155090,7 @@
       "id": "ME-D1-ALHA",
       "size": 3,
       "label": "ME-D1-ALHA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME3-D2-CKA",
-      "size": 3,
-      "label": "ME3-D2-CKA"
-    },
+    }, 
     {
       "x": 100.6522,
       "y": -0.78556,
@@ -155402,14 +155139,7 @@
       "id": "ME9-D2-CKA",
       "size": 3,
       "label": "ME9-D2-CKA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D1-BNK-VPN",
-      "size": 3,
-      "label": "PE-D1-BNK-VPN"
-    },
+    }, 
     {
       "x": 98.70145,
       "y": 3.56833,
@@ -155633,28 +155363,14 @@
       "id": "ME9-D1-JBCA",
       "size": 3,
       "label": "ME9-D1-JBCA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D7-PL1-VPN",
-      "size": 3,
-      "label": "PE-D7-PL1-VPN"
-    },
+    }, 
     {
       "x": 109.3492386,
       "y": -0.0871961,
       "id": "ME-D6-SUY-3",
       "size": 3,
       "label": "ME-D6-SUY-3"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D3-LBG",
-      "size": 3,
-      "label": "DCN-D3-LBG"
-    },
+    }, 
     {
       "x": 106.1131,
       "y": -2.1175,
@@ -155836,14 +155552,7 @@
       "id": "R2.KBB.PE-SN.2",
       "size": 3,
       "label": "R2.KBB.PE-SN.2"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.TBS.PE-MOBILE.2",
-      "size": 3,
-      "label": "R2.TBS.PE-MOBILE.2"
-    },
+    }, 
     {
       "x": 112.7454,
       "y": -7.32919,
@@ -155948,14 +155657,7 @@
       "id": "P-D6-BPP",
       "size": 3,
       "label": "P-D6-BPP"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R2.BRN.PE-MOBILE.1",
-      "size": 3,
-      "label": "R2.BRN.PE-MOBILE.1"
-    },
+    }, 
     {
       "x": 107.6163,
       "y": -6.80969,
@@ -155976,14 +155678,7 @@
       "id": "ME2-D2-PSK",
       "size": 3,
       "label": "ME2-D2-PSK"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R7.SUD.ASBR-TSEL.1",
-      "size": 3,
-      "label": "R7.SUD.ASBR-TSEL.1"
-    },
+    }, 
     {
       "x": 103.4389,
       "y": 0.99039,
@@ -156298,14 +155993,7 @@
       "id": "ME-D1-PBR-TSEL-KENANGA",
       "size": 3,
       "label": "ME-D1-PBR-TSEL-KENANGA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D6-TPU",
-      "size": 3,
-      "label": "ME-D6-TPU"
-    },
+    }, 
     {
       "x": 117.1482,
       "y": -0.49453,
@@ -156613,14 +156301,7 @@
       "id": "ME-D6-HNU",
       "size": 3,
       "label": "ME-D6-HNU"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R1.PGP.PE-MOBILE.2",
-      "size": 3,
-      "label": "R1.PGP.PE-MOBILE.2"
-    },
+    }, 
     {
       "x": 117.49687,
       "y": 2.14967,
@@ -156767,14 +156448,7 @@
       "id": "R5.KBL.ASBR-TSEL.1",
       "size": 3,
       "label": "R5.KBL.ASBR-TSEL.1"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D7-PL2-VPN",
-      "size": 3,
-      "label": "PE-D7-PL2-VPN"
-    },
+    }, 
     {
       "x": 106.79916,
       "y": -6.23827,
@@ -156844,14 +156518,7 @@
       "id": "ME-D1-LHTA",
       "size": 3,
       "label": "ME-D1-LHTA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R4.NSK.PE-MOBILE.2",
-      "size": 3,
-      "label": "R4.NSK.PE-MOBILE.2"
-    },
+    }, 
     {
       "x": 119.89182,
       "y": -0.9274,
@@ -156914,28 +156581,7 @@
       "id": "P-D7-JAP",
       "size": 3,
       "label": "P-D7-JAP"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D1-BKT-VPN",
-      "size": 3,
-      "label": "PE-D1-BKT-VPN"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D1-LSM-VPN",
-      "size": 3,
-      "label": "PE-D1-LSM-VPN"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE2-D1-PUB-VPN",
-      "size": 3,
-      "label": "PE2-D1-PUB-VPN"
-    },
+    },  
     {
       "x": 103.939,
       "y": 1.12389,
@@ -157061,14 +156707,7 @@
       "id": "ME-D2-SKJ",
       "size": 3,
       "label": "ME-D2-SKJ"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D1-BNA-VPN",
-      "size": 3,
-      "label": "PE-D1-BNA-VPN"
-    },
+    }, 
     {
       "x": 107.97677,
       "y": -7.1775,
@@ -157418,14 +157057,7 @@
       "id": "ME2-D1-BKTA",
       "size": 3,
       "label": "ME2-D1-BKTA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D2-KBB",
-      "size": 3,
-      "label": "DCN-D2-KBB"
-    },
+    }, 
     {
       "x": 106.8424,
       "y": -6.15509,
@@ -158139,21 +157771,7 @@
       "id": "ME-D2-CDG",
       "size": 3,
       "label": "ME-D2-CDG"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R5.GYG.ASBR-TSEL.1",
-      "size": 3,
-      "label": "R5.GYG.ASBR-TSEL.1"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "R3.KYA.PE-MOBILE.2",
-      "size": 3,
-      "label": "R3.KYA.PE-MOBILE.2"
-    },
+    }, 
     {
       "x": 114.61059,
       "y": -3.33031,
@@ -158195,14 +157813,7 @@
       "id": "PE4-D2-JT2-VPN",
       "size": 3,
       "label": "PE4-D2-JT2-VPN"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D5-ML0-VPN",
-      "size": 3,
-      "label": "PE-D5-ML0-VPN"
-    },
+    }, 
     {
       "x": 114.58608,
       "y": -3.28842,
@@ -158272,14 +157883,7 @@
       "id": "ME-D2-CBT",
       "size": 3,
       "label": "ME-D2-CBT"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D4-GLK-VPN",
-      "size": 3,
-      "label": "PE-D4-GLK-VPN"
-    },
+    }, 
     {
       "x": 119.408,
       "y": -5.13458,
@@ -158517,14 +158121,7 @@
       "id": "PE-D6-BJM-HSI",
       "size": 3,
       "label": "PE-D6-BJM-HSI"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D2-JTN",
-      "size": 3,
-      "label": "DCN-D2-JTN"
-    },
+    }, 
     {
       "x": 98.68111,
       "y": 3.62763,
@@ -158622,14 +158219,7 @@
       "id": "ME-D3-MLO",
       "size": 3,
       "label": "ME-D3-MLO"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D1-PUB",
-      "size": 3,
-      "label": "DCN-D1-PUB"
-    },
+    }, 
     {
       "x": 130.7148,
       "y": -0.96971,
@@ -158790,14 +158380,7 @@
       "id": "ME-D1-LBGA",
       "size": 3,
       "label": "ME-D1-LBGA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "DCN-D2-CKA",
-      "size": 3,
-      "label": "DCN-D2-CKA"
-    },
+    }, 
     {
       "x": 98.77653,
       "y": 1.74097,
@@ -159049,14 +158632,7 @@
       "id": "PE-D1-PUB-HSI",
       "size": 3,
       "label": "PE-D1-PUB-HSI"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D1-PDC-VPN",
-      "size": 3,
-      "label": "PE-D1-PDC-VPN"
-    },
+    }, 
     {
       "x": 104.67609,
       "y": -3.19596,
@@ -159399,14 +158975,7 @@
       "id": "ME9-D3-LBG",
       "size": 3,
       "label": "ME9-D3-LBG"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D1-PRAA",
-      "size": 3,
-      "label": "ME-D1-PRAA"
-    },
+    }, 
     {
       "x": 109.3292,
       "y": -0.00337,
@@ -159588,14 +159157,7 @@
       "id": "ME-D1-PGAA",
       "size": 3,
       "label": "ME-D1-PGAA"
-    },
-    {
-      "x": null,
-      "y": null,
-      "id": "PE-D4-KDS-VPN",
-      "size": 3,
-      "label": "PE-D4-KDS-VPN"
-    },
+    }, 
     {
       "x": 102.2656,
       "y": -3.79667,
@@ -159848,13 +159410,7 @@
       "size": 3,
       "label": "R7.PTR.PE-SN.1"
     },
-    {
-      "x": null,
-      "y": null,
-      "id": "ME-D1-NTLA",
-      "size": 3,
-      "label": "ME-D1-NTLA"
-    },
+   
     {
       "x": 106.6544,
       "y": -6.12594,
