@@ -88,6 +88,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [selectedLayer, setSelectedLayer] = useState<string>("multilayer");
   const [showMultilayerMap, setShowMultilayerMap] = useState(false);
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
+  const [showNodeEdgesLayer, setShowNodeEdgesLayer] = useState(false);
+  const [nodeEdgesData, setNodeEdgesData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
   // Reserved for future topology features (matching App.tsx structure)
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
@@ -281,6 +283,27 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     };
 
     loadMultilayerMapData();
+  }, []);
+
+  // Load node edges data from json_sigma.json
+  useEffect(() => {
+    const loadMultiNodeEdges = async () => {
+      try {
+        const response = await fetch("/json_sigma.json");
+        if (!response.ok) {
+          throw new Error("Failed to load node edges data");
+        }
+        const data = await response.json();
+        setNodeEdgesData(data);
+        // eslint-disable-next-line no-console
+        console.log("Node edges data loaded:", data);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("Error loading node edges data:", error);
+      }
+    };
+
+    loadMultiNodeEdges();
   }, []);
 
   // Initialize map
@@ -1597,14 +1620,30 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       // Add click handler for lines - Show LinkDetailsPanel and TopologyDrawer
       map.current.on("click", "multilayer-lines", (e) => {
         if (e.features && e.features.length > 0) {
+          console.log("CLICK TEST")
           const feature = e.features[0];
           const props = feature.properties;
+            const coordinates = e.lngLat;
 
           // Extract from/to from the name or use hostname
           const nameParts = (props?.name || "").split("-");
           const from = nameParts[0] || props?.hostname || "Node A";
           const to = nameParts[1] || "Node B";
 
+           const statusColor = props?.status === 'good' ? '#2ECC71' :
+            props?.status === 'medium' ? '#F39C12' :
+              props?.status === 'low' ? '#E74C3C' : '#2980B9';
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-size: 12px; padding: 8px;">
+                <strong style="font-size: 14px; color: ${statusColor};">🔗 ${props?.name || 'Connection Line'}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 600; text-transform: uppercase;">${props?.status || 'N/A'}</span><br/>
+              </div>
+            `)
+            .addTo(map.current!);
           // Set link details for LinkDetailsPanel
           setSelectedLink({
             from,
@@ -1625,6 +1664,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           setShowTopologyDrawer(true);
         }
       });
+
+      
 
       map.current.on("mouseenter", "multilayer-points", () => {
         map.current!.getCanvas().style.cursor = "pointer";
@@ -1673,6 +1714,287 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         "multilayer-lines",
         "multilayer-lines-glow",
       ];
+
+      layers.forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.setLayoutProperty(layerId, "visibility", visibility);
+        }
+      });
+    }
+  };
+
+  // Add node edges layer function
+  const addNodeEdgesLayer = () => {
+    if (!map.current || !nodeEdgesData) {
+      return;
+    }
+
+    try {
+      // Remove existing layers if they exist
+      const layersToRemove = ["node-edges-points", "node-edges-lines", "node-edges-lines-glow"];
+      layersToRemove.forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+
+      if (map.current.getSource("node-edges")) {
+        map.current.removeSource("node-edges");
+      }
+
+      // Create a map of node IDs to their coordinates
+      const nodeMap = new Map<string, { x: number; y: number; label: string; size: number }>();
+      nodeEdgesData.nodes.forEach((node) => {
+        nodeMap.set(node.id, {
+          x: node.x,
+          y: node.y,
+          label: node.label || node.id,
+          size: node.size || 3,
+        });
+      });
+
+      // Create GeoJSON features for edges (lines)
+      const lineFeatures = nodeEdgesData.edges
+        .map((edge) => {
+          const sourceNode = nodeMap.get(edge.source);
+          const targetNode = nodeMap.get(edge.target);
+
+          if (!sourceNode || !targetNode) {
+            return null;
+          }
+
+          return {
+            type: "Feature" as const,
+            properties: {
+              id: edge.id,
+              source: edge.source,
+              target: edge.target,
+              traffic_in: edge.traffic_in,
+              traffic_out: edge.traffic_out,
+              size: edge.size || 1,
+            },
+            geometry: {
+              type: "LineString" as const,
+              coordinates: [
+                [sourceNode.x, sourceNode.y],
+                [targetNode.x, targetNode.y],
+              ],
+            },
+          };
+        })
+        .filter((feature) => feature !== null);
+
+      // Create GeoJSON features for nodes (points)
+      const pointFeatures = nodeEdgesData.nodes.map((node) => ({
+        type: "Feature" as const,
+        properties: {
+          id: node.id,
+          label: node.label || node.id,
+          size: node.size || 3,
+        },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [node.x, node.y],
+        },
+      }));
+
+      // Combine all features
+      const allFeatures = [...lineFeatures, ...pointFeatures];
+
+      // Add source with all features
+      map.current.addSource("node-edges", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: allFeatures,
+        },
+      });
+
+      // Add line glow layer (bottom layer)
+      map.current.addLayer({
+        id: "node-edges-lines-glow",
+        type: "line",
+        source: "node-edges",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#00D9FF",
+          "line-width": 8,
+          "line-opacity": 0.3,
+          "line-blur": 4,
+        },
+      });
+
+      // Add line layer
+      map.current.addLayer({
+        id: "node-edges-lines",
+        type: "line",
+        source: "node-edges",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#00BFFF",
+          "line-width": 2,
+          "line-opacity": 0.8,
+        },
+      });
+
+      // Add points layer (top layer)
+      map.current.addLayer({
+        id: "node-edges-points",
+        type: "circle",
+        source: "node-edges",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": ["*", ["get", "size"], 2],
+          "circle-color": "#FF6B35",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFFFFF",
+          "circle-opacity": 0.9,
+        },
+      });
+
+      // Add click handler for points
+      map.current.on("click", "node-edges-points", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 8px;">
+                <strong style="font-size: 14px; color: #FF6B35;">${props?.label || props?.id || "Node"}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>ID:</strong> ${props?.id || "N/A"}<br/>
+                <strong>Size:</strong> ${props?.size || "N/A"}
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+
+          // Show topology drawer for the node
+          const hostname = props?.label || props?.id || "Node";
+          setTopologyConnection({ from: hostname, to: "Network" });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Add click handler for lines
+      map.current.on("click", "node-edges-lines", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          const from = props?.source || "Node A";
+          const to = props?.target || "Node B";
+
+          // Show popup with edge details
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 8px;">
+                <strong style="font-size: 14px; color: #00BFFF;">${from} → ${to}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>Edge ID:</strong> ${props?.id || "N/A"}<br/>
+                <strong>Traffic In:</strong> ${props?.traffic_in ? (props.traffic_in / 1000000).toFixed(2) + " MB" : "N/A"}<br/>
+                <strong>Traffic Out:</strong> ${props?.traffic_out ? (props.traffic_out / 1000000).toFixed(2) + " MB" : "N/A"}<br/>
+                <strong>Size:</strong> ${props?.size || "N/A"}
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+
+           
+
+          // Set link details for LinkDetailsPanel
+          setSelectedLink({
+            from,
+            to,
+            description: `${from} → ${to}`,
+            bandwidth_mbps: 10000,
+            utilization: 70 + Math.random() * 20,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: 1,
+            totalCapacity: "10G",
+            type: "L2_AGGREGATION",
+          });
+          setShowLinkDetails(true);
+
+          // Set topology connection for TopologyDrawer
+          setTopologyConnection({ from, to });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Add hover handlers
+      map.current.on("mouseenter", "node-edges-points", () => {
+        map.current!.getCanvas().style.cursor = "pointer";
+      });
+
+      map.current.on("mouseleave", "node-edges-points", () => {
+        map.current!.getCanvas().style.cursor = "";
+      });
+
+      map.current.on("mouseenter", "node-edges-lines", () => {
+        map.current!.getCanvas().style.cursor = "pointer";
+      });
+
+      map.current.on("mouseleave", "node-edges-lines", () => {
+        map.current!.getCanvas().style.cursor = "";
+      });
+
+      // Calculate bounds to fit all nodes
+      if (nodeEdgesData.nodes.length > 0) {
+        const lngs = nodeEdgesData.nodes.map((n) => n.x);
+        const lats = nodeEdgesData.nodes.map((n) => n.y);
+        const bounds = {
+          minLng: Math.min(...lngs),
+          maxLng: Math.max(...lngs),
+          minLat: Math.min(...lats),
+          maxLat: Math.max(...lats),
+        };
+
+        // Fit map to show all nodes
+        map.current.fitBounds(
+          [
+            [bounds.minLng, bounds.minLat],
+            [bounds.maxLng, bounds.maxLat],
+          ],
+          {
+            padding: 50,
+            duration: 1000,
+          },
+        );
+      }
+
+      // eslint-disable-next-line no-console
+      console.log("Node edges layer added successfully");
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Error adding node edges layer:", error);
+      alert(`Error adding node edges layer: ${error}`);
+    }
+  };
+
+  // Toggle node edges layer visibility
+  const toggleNodeEdgesLayer = () => {
+    if (!map.current) return;
+
+    const newVisibility = !showNodeEdgesLayer;
+    setShowNodeEdgesLayer(newVisibility);
+
+    if (newVisibility && !map.current.getLayer("node-edges-points")) {
+      // Add layer if it doesn't exist
+      addNodeEdgesLayer();
+    } else {
+      // Toggle visibility
+      const visibility = newVisibility ? "visible" : "none";
+
+      const layers = ["node-edges-points", "node-edges-lines", "node-edges-lines-glow"];
 
       layers.forEach((layerId) => {
         if (map.current!.getLayer(layerId)) {
@@ -1854,6 +2176,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
   }, [mapLoaded, multilayerMapData, showMultilayerMap]);
 
+  // Add node edges layer when data is loaded
+  useEffect(() => {
+    if (mapLoaded && nodeEdgesData && showNodeEdgesLayer && map.current) {
+      addNodeEdgesLayer();
+    }
+  }, [mapLoaded, nodeEdgesData, showNodeEdgesLayer]);
+
   // Update map when nodes change
   useEffect(() => {
     if (mapLoaded && nodes.length > 0) {
@@ -1882,7 +2211,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     };
     setToastMessage(`Switched to ${menuLabels[menu] || menu}`);
     setToastType("info");
-    setShowToast(true);
+    // setShowToast(true);
   };
 
   // Search handler
@@ -1968,11 +2297,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     if (showSigmaLayer) toggleSigmaLayer();
     if (showSirkitLayer) toggleSirkitLayer();
     if (showMultilayerMap) toggleMultilayerMapLayer();
+    if (showNodeEdgesLayer) toggleNodeEdgesLayer();
 
     if (value === "capacity" && !showCapacityLayer) toggleCapacityLayer();
     else if (value === "sigma" && !showSigmaLayer) toggleSigmaLayer();
     else if (value === "sirkit" && !showSirkitLayer) toggleSirkitLayer();
     else if (value === "multilayer" && !showMultilayerMap) toggleMultilayerMapLayer();
+    else if (value === "nodeedges" && !showNodeEdgesLayer) toggleNodeEdgesLayer();
   };
 
   return (
@@ -1990,6 +2321,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         sirkitDataLength={sirkitData.length}
         airportsDataAvailable={!!airportsData}
         multilayerMapDataAvailable={!!multilayerMapData}
+        nodeEdgesDataAvailable={!!nodeEdgesData}
       />
 
       {/* Search Bar */}

@@ -25,6 +25,7 @@ interface LeftSidebarProps {
   sirkitDataLength?: number;
   airportsDataAvailable?: boolean;
   multilayerMapDataAvailable?: boolean;
+  nodeEdgesDataAvailable?: boolean;
 }
 
 export function LeftSidebar({
@@ -38,7 +39,8 @@ export function LeftSidebar({
   capacityDataLength = 0,
   sirkitDataLength = 0,
   airportsDataAvailable = false,
-  multilayerMapDataAvailable = false
+  multilayerMapDataAvailable = false,
+  nodeEdgesDataAvailable = false
 }: LeftSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -331,6 +333,9 @@ export function LeftSidebar({
                   </option>
                   <option value="multilayer" disabled={!multilayerMapDataAvailable}>
                     Multilayer Map (GeoJSON) {!multilayerMapDataAvailable ? '(Loading...)' : ''}
+                  </option>
+                  <option value="nodeedges" disabled={!nodeEdgesDataAvailable}>
+                    Node Edges (Sigma JSON) {!nodeEdgesDataAvailable ? '(Loading...)' : ''}
                   </option>
                 </select>
               </div>

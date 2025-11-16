@@ -92,7 +92,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: 3,
       size: 20,
       color: '#3b82f6',
-      type: 'PE',
     });
     graph.addNode(pe2Id, {
       label: `${connection.to} PE2`,
@@ -100,7 +99,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: 3,
       size: 20,
       color: '#3b82f6',
-      type: 'PE',
     });
 
     // Layer 2: AGG nodes (middle)
@@ -112,7 +110,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: 0,
       size: 18,
       color: '#8b5cf6',
-      type: 'AGG',
     });
     graph.addNode(agg2Id, {
       label: `${connection.to} AGG1`,
@@ -120,7 +117,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: 0,
       size: 18,
       color: '#8b5cf6',
-      type: 'AGG',
     });
 
     // Layer 3: ACCESS nodes (bottom)
@@ -134,7 +130,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: -3,
       size: 15,
       color: '#10b981',
-      type: 'ACCESS',
     });
     graph.addNode(access2Id, {
       label: `${connection.from} ACC2`,
@@ -142,7 +137,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: -3,
       size: 15,
       color: '#10b981',
-      type: 'ACCESS',
     });
     graph.addNode(access3Id, {
       label: `${connection.to} ACC1`,
@@ -150,7 +144,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: -3,
       size: 15,
       color: '#10b981',
-      type: 'ACCESS',
     });
     graph.addNode(access4Id, {
       label: `${connection.to} ACC2`,
@@ -158,7 +151,6 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       y: -3,
       size: 15,
       color: '#10b981',
-      type: 'ACCESS',
     });
 
     // Add edges with capacity labels

@@ -133,9 +133,9 @@ export function DraggableNetworkHierarchy({
   totalNodes = 0,
   totalLinks = 0
 }: DraggableNetworkHierarchyProps) {
-  const [position, setPosition] = useState({ x: 300, y: 16 });
+  const [position, setPosition] = useState({ x: 310, y: 16 });
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
