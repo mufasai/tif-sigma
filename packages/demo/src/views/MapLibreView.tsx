@@ -90,6 +90,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
   const [showNodeEdgesLayer, setShowNodeEdgesLayer] = useState(false);
   const [nodeEdgesData, setNodeEdgesData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
+  const [isLayerLoading, setIsLayerLoading] = useState(false);
   // Reserved for future topology features (matching App.tsx structure)
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
@@ -171,7 +172,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     const loadCapacityData = async () => {
       try {
-        const response = await fetch("/data/capacity_ref_202511101613.csv");
+        const response = await fetch("/data/capacity_ref_new.csv");
         if (!response.ok) {
           throw new Error("Failed to load capacity data");
         }
@@ -283,6 +284,27 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     };
 
     loadMultilayerMapData();
+  }, []);
+
+  // Load node edges data from json_sigma.json
+  useEffect(() => {
+    const loadMultiNodeEdges = async () => {
+      try {
+        const response = await fetch("/json_sigma.json");
+        if (!response.ok) {
+          throw new Error("Failed to load node edges data");
+        }
+        const data = await response.json();
+        setNodeEdgesData(data);
+        // eslint-disable-next-line no-console
+        console.log("Node edges data loaded:", data);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("Error loading node edges data:", error);
+      }
+    };
+
+    loadMultiNodeEdges();
   }, []);
 
   // Load node edges data from json_sigma.json
@@ -1044,25 +1066,51 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add circle layer for capacity points (larger size) - on top of lines
+      // Add circle layer for capacity points (smaller size) - on top of lines
       map.current.addLayer({
         id: "capacity-points",
         type: "circle",
         source: "capacity",
         paint: {
-          "circle-radius": 10,
+          "circle-radius": 3, // Reduced from 10 to 6
           "circle-color": "#FF6B35",
-          "circle-stroke-width": 3,
+          "circle-stroke-width": 1, // Reduced from 3 to 2
           "circle-stroke-color": "#FFFFFF",
           "circle-opacity": 0.9,
         },
       });
 
-      // Add click handler for points - Show TopologyDrawer
+      // Add click handler for points - Show popup with details and TopologyDrawer
       map.current.on("click", "capacity-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Show popup with node details
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 8px; max-width: 280px;">
+                <strong style="font-size: 14px; color: #FF6B35;">📡 ${props?.hostname || "Node"}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+                  <strong>Manufacture:</strong> <span>${props?.manufacture || "N/A"}</span>
+                  <strong>Version:</strong> <span>${props?.version || "N/A"}</span>
+                  <strong>Platform:</strong> <span>${props?.platform || "N/A"}</span>
+                  <strong>STO:</strong> <span>${props?.sto_l || props?.sto || "N/A"}</span>
+                  <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
+                  <strong>Region:</strong> <span>${props?.reg || "N/A"}</span>
+                  <strong>Card Type:</strong> <span>${props?.tipe_card || "N/A"}</span>
+                  <strong>Capacity:</strong> <span>${props?.cap || "N/A"}</span>
+                  <strong>Port Used:</strong> <span style="color: #E74C3C;">${props?.port_used || "0"}</span>
+                  <strong>Port Idle:</strong> <span style="color: #2ECC71;">${props?.port_idle || "0"}</span>
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
 
           // Show topology drawer for the node
           const hostname = props?.hostname || "Node";
@@ -1621,9 +1669,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       map.current.on("click", "multilayer-lines", (e) => {
         if (e.features && e.features.length > 0) {
           console.log("CLICK TEST")
+          console.log("CLICK TEST")
           const feature = e.features[0];
           const props = feature.properties;
-            const coordinates = e.lngLat;
+            const coordinates = e.lngLat; 
 
           // Extract from/to from the name or use hostname
           const nameParts = (props?.name || "").split("-");
@@ -1644,6 +1693,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               </div>
             `)
             .addTo(map.current!);
+          
           // Set link details for LinkDetailsPanel
           setSelectedLink({
             from,
@@ -1664,6 +1714,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           setShowTopologyDrawer(true);
         }
       });
+
+      
 
       
 
@@ -1753,7 +1805,49 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         });
       });
 
-      // Create GeoJSON features for edges (lines)
+      // Helper function to create curved line with bezier curve
+      const createCurvedLine = (
+        start: [number, number],
+        end: [number, number],
+        curvature: number = 0.3
+      ): [number, number][] => {
+        const points: [number, number][] = [];
+        const steps = 20; // Number of points in the curve
+
+        // Calculate midpoint
+        const midX = (start[0] + end[0]) / 2;
+        const midY = (start[1] + end[1]) / 2;
+
+        // Calculate perpendicular offset for curve
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Perpendicular vector
+        const perpX = -dy / distance;
+        const perpY = dx / distance;
+
+        // Control point offset (creates the curve)
+        const offset = distance * curvature;
+        const controlX = midX + perpX * offset;
+        const controlY = midY + perpY * offset;
+
+        // Generate points along quadratic bezier curve
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const invT = 1 - t;
+          
+          // Quadratic bezier formula
+          const x = invT * invT * start[0] + 2 * invT * t * controlX + t * t * end[0];
+          const y = invT * invT * start[1] + 2 * invT * t * controlY + t * t * end[1];
+          
+          points.push([x, y]);
+        }
+
+        return points;
+      };
+
+      // Create GeoJSON features for edges with curves
       const lineFeatures = nodeEdgesData.edges
         .map((edge) => {
           const sourceNode = nodeMap.get(edge.source);
@@ -1762,6 +1856,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           if (!sourceNode || !targetNode) {
             return null;
           }
+
+          // Create curved line coordinates
+          const curvedCoordinates = createCurvedLine(
+            [sourceNode.x, sourceNode.y],
+            [targetNode.x, targetNode.y],
+            0.2 // Curvature factor (adjust for more/less curve)
+          );
 
           return {
             type: "Feature" as const,
@@ -1775,22 +1876,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             },
             geometry: {
               type: "LineString" as const,
-              coordinates: [
-                [sourceNode.x, sourceNode.y],
-                [targetNode.x, targetNode.y],
-              ],
+              coordinates: curvedCoordinates,
             },
           };
         })
         .filter((feature) => feature !== null);
 
-      // Create GeoJSON features for nodes (points)
+      // Create GeoJSON features for nodes (points) with smaller size
       const pointFeatures = nodeEdgesData.nodes.map((node) => ({
         type: "Feature" as const,
         properties: {
           id: node.id,
           label: node.label || node.id,
-          size: node.size || 3,
+          size: (node.size || 3) * 0.9, // Reduce size by 50%
         },
         geometry: {
           type: "Point" as const,
@@ -1810,21 +1908,21 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add line glow layer (bottom layer)
+      // Add line glow layer (bottom layer) - thinner
       map.current.addLayer({
         id: "node-edges-lines-glow",
         type: "line",
         source: "node-edges",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#00D9FF",
-          "line-width": 8,
-          "line-opacity": 0.3,
-          "line-blur": 4,
+          "line-color": "#005873ff",
+          "line-width": 1, // Reduced from 8
+          "line-opacity": 0.2, // Reduced opacity
+          "line-blur": 2, // Reduced blur
         },
       });
 
-      // Add line layer
+      // Add line layer - thinner
       map.current.addLayer({
         id: "node-edges-lines",
         type: "line",
@@ -1832,21 +1930,21 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
           "line-color": "#00BFFF",
-          "line-width": 2,
-          "line-opacity": 0.8,
+          "line-width": 0.5, // Reduced from 2
+          "line-opacity": 0.7, // Slightly reduced opacity
         },
       });
 
-      // Add points layer (top layer)
+      // Add points layer (top layer) - smaller
       map.current.addLayer({
         id: "node-edges-points",
         type: "circle",
         source: "node-edges",
         filter: ["==", ["geometry-type"], "Point"],
         paint: {
-          "circle-radius": ["*", ["get", "size"], 2],
+          "circle-radius": ["*", ["get", "size"], 1.2], // Reduced multiplier from 2 to 1.2
           "circle-color": "#FF6B35",
-          "circle-stroke-width": 2,
+          "circle-stroke-width": 1.5, // Reduced from 2
           "circle-stroke-color": "#FFFFFF",
           "circle-opacity": 0.9,
         },
@@ -2183,6 +2281,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
   }, [mapLoaded, nodeEdgesData, showNodeEdgesLayer]);
 
+  // Add node edges layer when data is loaded
+  useEffect(() => {
+    if (mapLoaded && nodeEdgesData && showNodeEdgesLayer && map.current) {
+      addNodeEdgesLayer();
+    }
+  }, [mapLoaded, nodeEdgesData, showNodeEdgesLayer]);
+
   // Update map when nodes change
   useEffect(() => {
     if (mapLoaded && nodes.length > 0) {
@@ -2211,6 +2316,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     };
     setToastMessage(`Switched to ${menuLabels[menu] || menu}`);
     setToastType("info");
+    // setShowToast(true);
     // setShowToast(true);
   };
 
@@ -2289,21 +2395,62 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     return undefined;
   }, [currentLevel]);
 
-  // Handle layer change
-  const handleLayerChange = (value: string) => {
+  // Handle layer change with loading state
+  const handleLayerChange = async (value: string) => {
     setSelectedLayer(value);
+    setIsLayerLoading(true);
 
+    // Small delay to show loading animation
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Turn off all layers first
     if (showCapacityLayer) toggleCapacityLayer();
     if (showSigmaLayer) toggleSigmaLayer();
     if (showSirkitLayer) toggleSirkitLayer();
     if (showMultilayerMap) toggleMultilayerMapLayer();
     if (showNodeEdgesLayer) toggleNodeEdgesLayer();
 
-    if (value === "capacity" && !showCapacityLayer) toggleCapacityLayer();
-    else if (value === "sigma" && !showSigmaLayer) toggleSigmaLayer();
-    else if (value === "sirkit" && !showSirkitLayer) toggleSirkitLayer();
-    else if (value === "multilayer" && !showMultilayerMap) toggleMultilayerMapLayer();
-    else if (value === "nodeedges" && !showNodeEdgesLayer) toggleNodeEdgesLayer();
+    // For multilayer, show kabupaten first, then multilayer on top
+    if (value === "multilayer") {
+      // Show kabupaten layer first if not already shown
+      if (!showKabupatenLayer) {
+        setShowKabupatenLayer(true);
+        if (map.current && !map.current.getLayer("kabupaten-fill")) {
+          addKabupatenLayer();
+        }
+        // Wait for kabupaten to render
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      // Then show multilayer on top
+      if (!showMultilayerMap) toggleMultilayerMapLayer();
+    } else {
+      // For other layers, hide kabupaten automatically
+      if (showKabupatenLayer) {
+        setShowKabupatenLayer(false);
+        if (map.current) {
+          const visibility = "none";
+          if (map.current.getLayer("kabupaten-fill")) {
+            map.current.setLayoutProperty("kabupaten-fill", "visibility", visibility);
+          }
+          if (map.current.getLayer("kabupaten-outline")) {
+            map.current.setLayoutProperty("kabupaten-outline", "visibility", visibility);
+          }
+          if (map.current.getLayer("kabupaten-hover")) {
+            map.current.setLayoutProperty("kabupaten-hover", "visibility", visibility);
+          }
+        }
+      }
+      
+      // Show the selected layer
+      if (value === "capacity" && !showCapacityLayer) toggleCapacityLayer();
+      else if (value === "sigma" && !showSigmaLayer) toggleSigmaLayer();
+      else if (value === "sirkit" && !showSirkitLayer) toggleSirkitLayer();
+      else if (value === "nodeedges" && !showNodeEdgesLayer) toggleNodeEdgesLayer();
+    }
+
+    // Additional delay for layer rendering
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setIsLayerLoading(false);
   };
 
   return (
@@ -2322,6 +2469,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         airportsDataAvailable={!!airportsData}
         multilayerMapDataAvailable={!!multilayerMapData}
         nodeEdgesDataAvailable={!!nodeEdgesData}
+        isLayerLoading={isLayerLoading}
       />
 
       {/* Search Bar */}
