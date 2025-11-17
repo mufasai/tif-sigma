@@ -2158,12 +2158,12 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           setShowLinkDetails(true);
 
           // Set topology connection for TopologyDrawer
-          setTopologyConnection({ 
-            from, 
-            to,
-            nodeData: props
-          });
-          setShowTopologyDrawer(true);
+          // setTopologyConnection({ 
+          //   from, 
+          //   to,
+          //   nodeData: props
+          // });
+          // setShowTopologyDrawer(true);
         }
       });
 
