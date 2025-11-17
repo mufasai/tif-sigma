@@ -7,6 +7,8 @@ interface TopologyDrawerProps {
   connection: {
     from: string;
     to: string;
+    nodeData?: any;
+    topology?: any[];
   };
   onClose: () => void;
 }
@@ -82,133 +84,187 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     // Create graph
     const graph = new Graph();
 
-    // Define topology structure with hierarchical layout
-    // Layer 1: PE nodes (top)
-    const pe1Id = 'pe1';
-    const pe2Id = 'pe2';
-    graph.addNode(pe1Id, {
-      label: `${connection.from} PE1`,
-      x: -3,
-      y: 3,
-      size: 20,
-      color: '#3b82f6',
-    });
-    graph.addNode(pe2Id, {
-      label: `${connection.to} PE2`,
-      x: 3,
-      y: 3,
-      size: 20,
-      color: '#3b82f6',
-    });
+    // Check if we have actual topology data
+    if (connection.topology && connection.topology.length > 0) {
+      // Use actual topology data
+      const nodeSet = new Set<string>();
+      const nodePositions = new Map<string, { x: number; y: number }>();
 
-    // Layer 2: AGG nodes (middle)
-    const agg1Id = 'agg1';
-    const agg2Id = 'agg2';
-    graph.addNode(agg1Id, {
-      label: `${connection.from} AGG1`,
-      x: -3,
-      y: 0,
-      size: 18,
-      color: '#8b5cf6',
-    });
-    graph.addNode(agg2Id, {
-      label: `${connection.to} AGG1`,
-      x: 3,
-      y: 0,
-      size: 18,
-      color: '#8b5cf6',
-    });
+      // Collect all unique nodes
+      connection.topology.forEach((link: any) => {
+        nodeSet.add(link.source);
+        nodeSet.add(link.target);
+      });
 
-    // Layer 3: ACCESS nodes (bottom)
-    const access1Id = 'access1';
-    const access2Id = 'access2';
-    const access3Id = 'access3';
-    const access4Id = 'access4';
-    graph.addNode(access1Id, {
-      label: `${connection.from} ACC1`,
-      x: -4,
-      y: -3,
-      size: 15,
-      color: '#10b981',
-    });
-    graph.addNode(access2Id, {
-      label: `${connection.from} ACC2`,
-      x: -2,
-      y: -3,
-      size: 15,
-      color: '#10b981',
-    });
-    graph.addNode(access3Id, {
-      label: `${connection.to} ACC1`,
-      x: 2,
-      y: -3,
-      size: 15,
-      color: '#10b981',
-    });
-    graph.addNode(access4Id, {
-      label: `${connection.to} ACC2`,
-      x: 4,
-      y: -3,
-      size: 15,
-      color: '#10b981',
-    });
+      // Calculate positions in a circular layout
+      const nodes = Array.from(nodeSet);
+      const centerNode = connection.from;
+      const radius = 3;
+      
+      // Add center node (the selected node)
+      graph.addNode(centerNode, {
+        label: centerNode,
+        x: 0,
+        y: 0,
+        size: 25,
+        color: '#9333ea',
+      });
+      nodePositions.set(centerNode, { x: 0, y: 0 });
 
-    // Add edges with capacity labels
-    // PE to PE (backbone)
-    graph.addEdge(pe1Id, pe2Id, {
-      size: 4,
-      color: '#3b82f6',
-      label: '100G',
-      type: 'line',
-    });
+      // Add other nodes in a circle around the center
+      const otherNodes = nodes.filter(n => n !== centerNode);
+      otherNodes.forEach((node, index) => {
+        const angle = (2 * Math.PI * index) / otherNodes.length;
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        
+        graph.addNode(node, {
+          label: node,
+          x,
+          y,
+          size: 18,
+          color: '#3b82f6',
+        });
+        nodePositions.set(node, { x, y });
+      });
 
-    // PE to AGG
-    graph.addEdge(pe1Id, agg1Id, {
-      size: 3,
-      color: '#10b981',
-      label: '100G',
-      type: 'line',
-    });
-    graph.addEdge(pe2Id, agg2Id, {
-      size: 3,
-      color: '#10b981',
-      label: '100G',
-      type: 'line',
-    });
+      // Add edges from topology data
+      connection.topology.forEach((link: any) => {
+        const sourceCapacity = link.source_capacity_total || 0;
+        const capacityLabel = sourceCapacity > 0 ? `${(sourceCapacity / 1000).toFixed(1)}G` : '';
 
-    // AGG to AGG
-    graph.addEdge(agg1Id, agg2Id, {
-      size: 3,
-      color: '#10b981',
-      label: '50G',
-      type: 'line',
-    });
+        try {
+          if (graph.hasNode(link.source) && graph.hasNode(link.target)) {
+            graph.addEdge(link.source, link.target, {
+              size: Math.max(2, Math.min(6, sourceCapacity / 1000)),
+              color: sourceCapacity > 10000 ? '#10b981' : sourceCapacity > 5000 ? '#3b82f6' : '#8b5cf6',
+              label: capacityLabel,
+              type: 'line',
+            });
+          }
+        } catch (error) {
+          // Edge might already exist, skip
+        }
+      });
 
-    // AGG to ACCESS
-    graph.addEdge(agg1Id, access1Id, {
-      size: 2,
-      color: '#10b981',
-      label: '10G',
-      type: 'line',
-    });
-    graph.addEdge(agg1Id, access2Id, {
-      size: 2,
-      color: '#10b981',
-      label: '10G',
-      type: 'line',
-    });
-    graph.addEdge(agg2Id, access3Id, {
-      size: 2,
-      color: '#10b981',
-      label: '10G',
-      type: 'line',
-    });
-    graph.addEdge(agg2Id, access4Id, {
-      size: 2,
-      color: '#10b981',
-      label: '10G',
-      type: 'line',
-    });
+    } else {
+      // Fallback to default topology structure
+      const pe1Id = 'pe1';
+      const pe2Id = 'pe2';
+      graph.addNode(pe1Id, {
+        label: `${connection.from} PE1`,
+        x: -3,
+        y: 3,
+        size: 20,
+        color: '#3b82f6',
+      });
+      graph.addNode(pe2Id, {
+        label: `${connection.to} PE2`,
+        x: 3,
+        y: 3,
+        size: 20,
+        color: '#3b82f6',
+      });
+
+      const agg1Id = 'agg1';
+      const agg2Id = 'agg2';
+      graph.addNode(agg1Id, {
+        label: `${connection.from} AGG1`,
+        x: -3,
+        y: 0,
+        size: 18,
+        color: '#8b5cf6',
+      });
+      graph.addNode(agg2Id, {
+        label: `${connection.to} AGG1`,
+        x: 3,
+        y: 0,
+        size: 18,
+        color: '#8b5cf6',
+      });
+
+      const access1Id = 'access1';
+      const access2Id = 'access2';
+      const access3Id = 'access3';
+      const access4Id = 'access4';
+      graph.addNode(access1Id, {
+        label: `${connection.from} ACC1`,
+        x: -4,
+        y: -3,
+        size: 15,
+        color: '#10b981',
+      });
+      graph.addNode(access2Id, {
+        label: `${connection.from} ACC2`,
+        x: -2,
+        y: -3,
+        size: 15,
+        color: '#10b981',
+      });
+      graph.addNode(access3Id, {
+        label: `${connection.to} ACC1`,
+        x: 2,
+        y: -3,
+        size: 15,
+        color: '#10b981',
+      });
+      graph.addNode(access4Id, {
+        label: `${connection.to} ACC2`,
+        x: 4,
+        y: -3,
+        size: 15,
+        color: '#10b981',
+      });
+
+      graph.addEdge(pe1Id, pe2Id, {
+        size: 4,
+        color: '#3b82f6',
+        label: '100G',
+        type: 'line',
+      });
+      graph.addEdge(pe1Id, agg1Id, {
+        size: 3,
+        color: '#10b981',
+        label: '100G',
+        type: 'line',
+      });
+      graph.addEdge(pe2Id, agg2Id, {
+        size: 3,
+        color: '#10b981',
+        label: '100G',
+        type: 'line',
+      });
+      graph.addEdge(agg1Id, agg2Id, {
+        size: 3,
+        color: '#10b981',
+        label: '50G',
+        type: 'line',
+      });
+      graph.addEdge(agg1Id, access1Id, {
+        size: 2,
+        color: '#10b981',
+        label: '10G',
+        type: 'line',
+      });
+      graph.addEdge(agg1Id, access2Id, {
+        size: 2,
+        color: '#10b981',
+        label: '10G',
+        type: 'line',
+      });
+      graph.addEdge(agg2Id, access3Id, {
+        size: 2,
+        color: '#10b981',
+        label: '10G',
+        type: 'line',
+      });
+      graph.addEdge(agg2Id, access4Id, {
+        size: 2,
+        color: '#10b981',
+        label: '10G',
+        type: 'line',
+      });
+    }
 
     // Initialize Sigma
     try {
@@ -235,7 +291,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
         sigmaInstanceRef.current = null;
       }
     };
-  }, [connection.from, connection.to, isCollapsed]);
+  }, [connection.from, connection.to, connection.topology, isCollapsed]);
 
   // Count nodes and links from graph
   const getGraphStats = () => {

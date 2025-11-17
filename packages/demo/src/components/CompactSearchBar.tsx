@@ -1,20 +1,99 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FiSearch, FiNavigation, FiFilter, FiX, FiPlus, FiMapPin, FiTarget } from 'react-icons/fi';
 
-interface CompactSearchBarProps {
-  onSearch: (query: string) => void;
+export interface SearchSuggestion {
+  id: string;
+  label: string;
+  type: string;
+  latitude: number;
+  longitude: number;
+  metadata?: Record<string, any>;
 }
 
-export function CompactSearchBar({ onSearch }: CompactSearchBarProps) {
+interface CompactSearchBarProps {
+  onSearch: (query: string, suggestion?: SearchSuggestion) => void;
+  suggestions?: SearchSuggestion[];
+}
+
+export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBarProps) {
   const [query, setQuery] = useState('');
   const [startPoint, setStartPoint] = useState('');
   const [endPoint, setEndPoint] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [routeMode, setRouteMode] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<SearchSuggestion[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<SearchSuggestion | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Filter suggestions based on query
+  useEffect(() => {
+    if (query.trim().length > 0) {
+      const filtered = suggestions.filter((suggestion) =>
+        suggestion.label.toLowerCase().includes(query.toLowerCase()) ||
+        suggestion.type.toLowerCase().includes(query.toLowerCase()) ||
+        (suggestion.metadata?.witel && suggestion.metadata.witel.toLowerCase().includes(query.toLowerCase())) ||
+        (suggestion.metadata?.sto && suggestion.metadata.sto.toLowerCase().includes(query.toLowerCase()))
+      ).slice(0, 10); // Limit to 10 suggestions
+      setFilteredSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setFilteredSuggestions([]);
+      setShowSuggestions(false);
+    }
+    setSelectedSuggestionIndex(-1);
+  }, [query, suggestions]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = () => {
     if (query.trim()) {
-      onSearch(query);
+      onSearch(query, selectedSuggestion || undefined);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: SearchSuggestion) => {
+    setQuery(suggestion.label);
+    setSelectedSuggestion(suggestion);
+    setShowSuggestions(false);
+    onSearch(suggestion.label, suggestion);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (selectedSuggestionIndex >= 0 && filteredSuggestions[selectedSuggestionIndex]) {
+        handleSuggestionClick(filteredSuggestions[selectedSuggestionIndex]);
+      } else {
+        handleSearch();
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) =>
+        prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
     }
   };
 
@@ -53,15 +132,25 @@ export function CompactSearchBar({ onSearch }: CompactSearchBarProps) {
           backdropFilter: 'blur(20px)',
           borderRadius: '16px',
           border: '1px solid rgba(255,255,255,0.3)',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)'
+          boxShadow: '0 20px 40px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)',
+          position: 'relative'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px' }}>
             <FiSearch style={{ width: '16px', height: '16px', color: '#9CA3AF', flexShrink: 0 }} />
             <input
+              ref={inputRef}
               placeholder="Search NE, link, area, witel..."
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedSuggestion(null);
+              }}
+              onKeyDown={handleKeyDown}
+              onFocus={() => {
+                if (filteredSuggestions.length > 0) {
+                  setShowSuggestions(true);
+                }
+              }}
               style={{
                 border: 'none',
                 background: 'transparent',
@@ -76,7 +165,11 @@ export function CompactSearchBar({ onSearch }: CompactSearchBarProps) {
             />
             {query && (
               <button
-                onClick={() => setQuery('')}
+                onClick={() => {
+                  setQuery('');
+                  setSelectedSuggestion(null);
+                  setShowSuggestions(false);
+                }}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -188,6 +281,77 @@ export function CompactSearchBar({ onSearch }: CompactSearchBarProps) {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Autocomplete Suggestions Dropdown */}
+          {showSuggestions && filteredSuggestions.length > 0 && (
+            <div
+              ref={suggestionsRef}
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: '16px',
+                right: '16px',
+                marginTop: '8px',
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.98), rgba(240,240,240,0.95))',
+                backdropFilter: 'blur(20px)',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
+                maxHeight: '320px',
+                overflowY: 'auto',
+                zIndex: 1000
+              }}
+            >
+              {filteredSuggestions.map((suggestion, index) => (
+                <div
+                  key={suggestion.id}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  style={{
+                    padding: '10px 14px',
+                    cursor: 'pointer',
+                    borderBottom: index < filteredSuggestions.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                    background: selectedSuggestionIndex === index ? 'rgba(79, 70, 229, 0.1)' : 'transparent',
+                    transition: 'background 0.15s ease',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(79, 70, 229, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedSuggestionIndex !== index) {
+                      e.currentTarget.style.background = 'transparent';
+                    }
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: suggestion.type === 'capacity' ? '#FF6B35' : 
+                                  suggestion.type === 'sirkit' ? '#4ECDC4' : 
+                                  suggestion.type === 'multilayer' ? '#9B59B6' : 
+                                  suggestion.type === 'nodeedges' ? '#00BFFF' : '#999999',
+                      flexShrink: 0
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#1F2937', marginBottom: '2px' }}>
+                        {suggestion.label}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#6B7280' }}>
+                        {suggestion.type === 'capacity' && '📡 Capacity Node'}
+                        {suggestion.type === 'sirkit' && '🔗 Sirkit Node'}
+                        {suggestion.type === 'multilayer' && '🌐 Multilayer Node'}
+                        {suggestion.type === 'nodeedges' && '⚡ Network Node'}
+                        {suggestion.metadata?.witel && ` • ${suggestion.metadata.witel}`}
+                        {suggestion.metadata?.sto && ` • ${suggestion.metadata.sto}`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

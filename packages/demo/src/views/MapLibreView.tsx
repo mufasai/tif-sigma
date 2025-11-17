@@ -111,7 +111,12 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     type?: string;
   } | null>(null);
   const [showTopologyDrawer, setShowTopologyDrawer] = useState(false);
-  const [topologyConnection, setTopologyConnection] = useState<{ from: string; to: string } | null>(null);
+  const [topologyConnection, setTopologyConnection] = useState<{ 
+    from: string; 
+    to: string;
+    nodeData?: any;
+    topology?: any[];
+  } | null>(null);
 
   // New state for hierarchy and navigation (matching App.tsx)
   const [currentLevel, setCurrentLevel] = useState<HierarchyLevel>("national");
@@ -126,6 +131,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<ToastType>("info");
   const [_searchQuery, setSearchQuery] = useState("");
+  const [searchSuggestions, setSearchSuggestions] = useState<Array<{
+    id: string;
+    label: string;
+    type: string;
+    latitude: number;
+    longitude: number;
+    metadata?: Record<string, any>;
+  }>>([]);
 
   // const handleClose = () => {
   //   if (onClose) {
@@ -172,7 +185,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     const loadCapacityData = async () => {
       try {
-        const response = await fetch("/data/capacity_ref_new.csv");
+        const response = await fetch("/data/capacity-polygon-5k.csv");
         if (!response.ok) {
           throw new Error("Failed to load capacity data");
         }
@@ -290,28 +303,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     const loadMultiNodeEdges = async () => {
       try {
-        const response = await fetch("/json_sigma.json");
-        if (!response.ok) {
-          throw new Error("Failed to load node edges data");
-        }
-        const data = await response.json();
-        setNodeEdgesData(data);
-        // eslint-disable-next-line no-console
-        console.log("Node edges data loaded:", data);
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error("Error loading node edges data:", error);
-      }
-    };
-
-    loadMultiNodeEdges();
-  }, []);
-
-  // Load node edges data from json_sigma.json
-  useEffect(() => {
-    const loadMultiNodeEdges = async () => {
-      try {
-        const response = await fetch("/json_sigma.json");
+        const response = await fetch("/sigma-topology.json");
         if (!response.ok) {
           throw new Error("Failed to load node edges data");
         }
@@ -1115,7 +1107,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           // Show topology drawer for the node
           const hostname = props?.hostname || "Node";
           setTopologyConnection({ from: hostname, to: "Network" });
-          setShowTopologyDrawer(true);
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -1631,18 +1623,70 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
       });
 
-      // Add click handler for points - Show TopologyDrawer
-      map.current.on("click", "multilayer-points", (e) => {
-        if (e.features && e.features.length > 0) {
-          const feature = e.features[0];
-          const props = feature.properties;
+      // Add click handler for points - Show popup and TopologyDrawer
+      // map.current.on("click", "multilayer-points", (e) => {
+      //   if (e.features && e.features.length > 0) {
+      //     const feature = e.features[0];
+      //     const props = feature.properties;
+      //     const coordinates = e.lngLat;
 
-          // Show topology drawer for the node
-          const hostname = props?.hostname || "Node";
-          setTopologyConnection({ from: hostname, to: "Network" });
-          setShowTopologyDrawer(true);
-        }
-      });
+      //     // Parse topology data if it exists
+      //     let topologyData: any[] | undefined;
+      //     try {
+      //       if (props?.topology) {
+      //         const parsed = typeof props.topology === 'string' 
+      //           ? JSON.parse(props.topology) 
+      //           : props.topology;
+      //         topologyData = Array.isArray(parsed) ? parsed : undefined;
+      //       }
+      //     } catch (error) {
+      //       console.error('Error parsing topology data:', error);
+      //     }
+
+      //     // Show popup with all node data except topology
+      //     const topologyCount = topologyData ? topologyData.length : 0;
+      //     const topologyInfo = topologyCount > 0
+      //       ? `<div style="margin-top: 8px; padding: 6px; background: rgba(147, 51, 234, 0.1); border-radius: 4px; font-size: 11px; color: #9333ea;">
+      //           <strong>Topology:</strong> ${topologyCount} connections available
+      //         </div>` 
+      //       : '';
+
+      //     new maplibregl.Popup()
+      //       .setLngLat(coordinates)
+      //       .setHTML(
+      //         `
+      //         <div style="font-size: 12px; padding: 8px; max-width: 320px;">
+      //           <strong style="font-size: 14px; color: #9333ea;">📡 ${props?.hostname || props?.label || "Node"}</strong><br/>
+      //           <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+      //           <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+      //             <strong>IDSSS:</strong> <span>${props?.id || "N/A"}</span>
+      //             <strong>Label:</strong> <span>${props?.label || "N/A"}</span>
+      //             <strong>Manufacture:</strong> <span>${props?.manufacture || "N/A"}</span>
+      //             <strong>Platform:</strong> <span>${props?.platform || "N/A"}</span>
+      //             <strong>Version:</strong> <span>${props?.version || "N/A"}</span>
+      //             <strong>Region:</strong> <span>${props?.reg || "N/A"}</span>
+      //             <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
+      //             <strong>STO:</strong> <span>${props?.sto_l || "N/A"}</span>
+      //             <strong>Size:</strong> <span>${props?.size || "N/A"}</span>
+      //             <strong>Coordinates:</strong> <span>${props?.x || "N/A"}, ${props?.y || "N/A"}</span>
+      //           </div>
+      //           ${topologyInfo}
+      //         </div>
+      //       `,
+      //       )
+      //       .addTo(map.current!);
+
+      //     // Show topology drawer for the node with topology data
+      //     const hostname = props?.hostname || props?.label || "Node";
+      //     setTopologyConnection({ 
+      //       from: hostname, 
+      //       to: "Network",
+      //       nodeData: props,
+      //       topology: topologyData || undefined
+      //     });
+      //     setShowTopologyDrawer(true);
+      //   }
+      // });
 
       // Add hover handlers
       map.current.on("mouseenter", "multilayer-polygons-fill", (e) => {
@@ -1867,9 +1911,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           return {
             type: "Feature" as const,
             properties: {
+              // Include ALL edge properties from the original data
               id: edge.id,
               source: edge.source,
               target: edge.target,
+              node_a_platform: edge.node_a_platform || "",
+              node_b_platform: edge.node_b_platform || "",
+              source_capacity_total: edge.source_capacity_total || 0,
+              target_capacity_total: edge.target_capacity_total || 0,
               traffic_in: edge.traffic_in,
               traffic_out: edge.traffic_out,
               size: edge.size || 1,
@@ -1886,9 +1935,21 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       const pointFeatures = nodeEdgesData.nodes.map((node) => ({
         type: "Feature" as const,
         properties: {
+          // Include ALL node properties from the original data
           id: node.id,
+          hostname: node.hostname || node.id,
           label: node.label || node.id,
-          size: (node.size || 3) * 0.9, // Reduce size by 50%
+          manufacture: node.manufacture || "",
+          platform: node.platform || "",
+          reg: node.reg || "",
+          sto_l: node.sto_l || "",
+          version: node.version || "",
+          witel: node.witel || "",
+          x: node.x,
+          y: node.y,
+          size: (node.size || 3) * 0.9,
+          // Serialize topology as JSON string for MapLibre properties
+          topology: node.topology ? JSON.stringify(node.topology) : undefined,
         },
         geometry: {
           type: "Point" as const,
@@ -1898,6 +1959,16 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       // Combine all features
       const allFeatures = [...lineFeatures, ...pointFeatures];
+
+      // Debug: Log features to verify data
+      console.log('=== Node Edges Layer Created ===');
+      console.log('Total edges:', lineFeatures.length);
+      console.log('Total nodes:', pointFeatures.length);
+      console.log('Sample edge feature:', lineFeatures[0]);
+      console.log('Sample edge properties:', lineFeatures[0]?.properties);
+      console.log('Sample node feature:', pointFeatures[0]);
+      console.log('Sample node properties:', pointFeatures[0]?.properties);
+      console.log('================================');
 
       // Add source with all features
       map.current.addSource("node-edges", {
@@ -1957,23 +2028,66 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const props = feature.properties;
           const coordinates = e.lngLat;
 
+          // Debug: Log all properties to console
+          console.log('=== Node Point Clicked ===');
+          console.log('Full feature:', feature);
+          console.log('Properties:', props);
+          console.log('All property keys:', Object.keys(props || {}));
+          console.log('=========================');
+
+          // Parse topology data if it exists
+          let topologyData: any[] | undefined;
+          try {
+            if (props?.topology) {
+              const parsed = typeof props.topology === 'string' 
+                ? JSON.parse(props.topology) 
+                : props.topology;
+              topologyData = Array.isArray(parsed) ? parsed : undefined;
+            }
+          } catch (error) {
+            console.error('Error parsing topology data:', error);
+          }
+
+          // Show popup with all node data except topology
+          const topologyCount = topologyData ? topologyData.length : 0;
+          const topologyInfo = topologyCount > 0
+            ? `<div style="margin-top: 8px; padding: 6px; background: rgba(255, 107, 53, 0.1); border-radius: 4px; font-size: 11px; color: #FF6B35;">
+                <strong>Topology:</strong> ${topologyCount} connections available
+              </div>` 
+            : '';
+
           new maplibregl.Popup()
             .setLngLat(coordinates)
             .setHTML(
               `
-              <div style="font-size: 12px; padding: 8px;">
-                <strong style="font-size: 14px; color: #FF6B35;">${props?.label || props?.id || "Node"}</strong><br/>
+              <div style="font-size: 12px; padding: 8px; max-width: 320px;">
+                <strong style="font-size: 14px; color: #FF6B35;">📡 ${props?.hostname || props?.label || props?.id || "Node"}</strong><br/>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>ID:</strong> ${props?.id || "N/A"}<br/>
-                <strong>Size:</strong> ${props?.size || "N/A"}
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+                <strong>Hostname:</strong> <span>${props?.hostname || "N/A"}</span>
+                  <strong>Manufacture:</strong> <span>${props?.manufacture || "N/A"}</span>
+                  <strong>Platform:</strong> <span>${props?.platform || "N/A"}</span>
+                  <strong>Version:</strong> <span>${props?.version || "N/A"}</span>
+                  <strong>Region:</strong> <span>${props?.reg || "N/A"}</span>
+                  <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
+                  <strong>STO:</strong> <span>${props?.sto_l || "N/A"}</span>
+                  <strong>Size:</strong> <span>${props?.size || "N/A"}</span>
+                  <strong>Coordinates:</strong> <span>${props?.x || "N/A"}, ${props?.y || "N/A"}</span>
+                </div>
+                ${topologyInfo}
               </div>
             `,
             )
             .addTo(map.current!);
 
-          // Show topology drawer for the node
-          const hostname = props?.label || props?.id || "Node";
-          setTopologyConnection({ from: hostname, to: "Network" });
+          // Show topology drawer for the node with topology data
+          const hostname = props?.hostname || props?.label || props?.id || "Node";
+          setTopologyConnection({ 
+            from: hostname, 
+            to: "Network",
+            nodeData: props,
+            topology: topologyData || undefined
+          });
           setShowTopologyDrawer(true);
         }
       });
@@ -1985,45 +2099,70 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const props = feature.properties;
           const coordinates = e.lngLat;
 
+          // Debug: Log all properties to console
+          // console.log('=== Edge Line Clicked ===');
+          // console.log('Full feature:', feature);
+          // console.log('Properties:', props);
+          // console.log('All property keys:', Object.keys(props || {}));
+          // console.log('========================');
+
           const from = props?.source || "Node A";
           const to = props?.target || "Node B";
+          
+          // Calculate capacities in Gbps
+          const sourceCapacityGbps = props?.source_capacity_total 
+            ? (props.source_capacity_total / 1000).toFixed(2) 
+            : "N/A";
+          const targetCapacityGbps = props?.target_capacity_total 
+            ? (props.target_capacity_total / 1000).toFixed(2) 
+            : "N/A";
 
-          // Show popup with edge details
+          // Show popup with all edge details
           new maplibregl.Popup()
             .setLngLat(coordinates)
             .setHTML(
               `
-              <div style="font-size: 12px; padding: 8px;">
-                <strong style="font-size: 14px; color: #00BFFF;">${from} → ${to}</strong><br/>
+              <div style="font-size: 12px; padding: 8px; max-width: 320px;">
+                <strong style="font-size: 14px; color: #00BFFF;">🔗 ${from} → ${to}</strong><br/>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>Edge ID:</strong> ${props?.id || "N/A"}<br/>
-                <strong>Traffic In:</strong> ${props?.traffic_in ? (props.traffic_in / 1000000).toFixed(2) + " MB" : "N/A"}<br/>
-                <strong>Traffic Out:</strong> ${props?.traffic_out ? (props.traffic_out / 1000000).toFixed(2) + " MB" : "N/A"}<br/>
-                <strong>Size:</strong> ${props?.size || "N/A"}
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+                  <strong>Edge ID:</strong> <span>${props?.id || "N/A"}</span>
+                  <strong>Source:</strong> <span>${from}</span>
+                  <strong>Target:</strong> <span>${to}</span>
+                   <strong>Source Capacity:</strong> <span style="color: #2ECC71; font-weight: 600;">${sourceCapacityGbps} Gbps</span>
+                  <strong>Target Capacity:</strong> <span style="color: #3498DB; font-weight: 600;">${targetCapacityGbps} Gbps</span>
+                  <strong>Size:</strong> <span>${props?.size || "N/A"}</span>
+                </div> 
               </div>
             `,
             )
             .addTo(map.current!);
 
-           
-
-          // Set link details for LinkDetailsPanel
+          // Set link details for LinkDetailsPanel with actual capacity data
+          const sourceCapacityMbps = props?.source_capacity_total || 10000;
+          const targetCapacityMbps = props?.target_capacity_total || 10000;
+          const avgCapacityMbps = (sourceCapacityMbps + targetCapacityMbps) / 2;
+          
           setSelectedLink({
             from,
             to,
             description: `${from} → ${to}`,
-            bandwidth_mbps: 10000,
-            utilization: 70 + Math.random() * 20,
+            bandwidth_mbps: avgCapacityMbps,
+            utilization: 60 + Math.random() * 30,
             latency: 5 + Math.random() * 10,
             packetLoss: Math.random() * 0.1,
             linkCount: 1,
-            totalCapacity: "10G",
+            totalCapacity: `${(avgCapacityMbps / 1000).toFixed(1)}G`,
             type: "L2_AGGREGATION",
           });
           setShowLinkDetails(true);
 
           // Set topology connection for TopologyDrawer
-          setTopologyConnection({ from, to });
+          setTopologyConnection({ 
+            from, 
+            to,
+            nodeData: props
+          });
           setShowTopologyDrawer(true);
         }
       });
@@ -2320,9 +2459,170 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     // setShowToast(true);
   };
 
-  // Search handler
-  const handleSearch = (query: string) => {
+  // Generate search suggestions from active layer data
+  useEffect(() => {
+    const suggestions: Array<{
+      id: string;
+      label: string;
+      type: string;
+      latitude: number;
+      longitude: number;
+      metadata?: Record<string, any>;
+    }> = [];
+
+    // Add capacity layer suggestions
+    if (showCapacityLayer && capacityData.length > 0) {
+      capacityData.forEach((item, index) => {
+        if (item.hostname && item.latitude && item.longitude) {
+          suggestions.push({
+            id: `capacity-${index}`,
+            label: item.hostname,
+            type: 'capacity',
+            latitude: parseFloat(item.latitude),
+            longitude: parseFloat(item.longitude),
+            metadata: {
+              manufacture: item.manufacture,
+              platform: item.platform,
+              witel: item.witel,
+              sto: item.sto_l || item.sto,
+              reg: item.reg
+            }
+          });
+        }
+      });
+    }
+
+    // Add sirkit layer suggestions
+    if (showSirkitLayer && sirkitData.length > 0) {
+      sirkitData.forEach((item, index) => {
+        if (item.node && item.latitude && item.longitude) {
+          suggestions.push({
+            id: `sirkit-${index}`,
+            label: item.node,
+            type: 'sirkit',
+            latitude: parseFloat(item.latitude),
+            longitude: parseFloat(item.longitude),
+            metadata: {
+              witel: item.witel,
+              sto: item.sto_l || item.sto,
+              reg: item.reg,
+              platform: item.platform
+            }
+          });
+        }
+      });
+    }
+
+    // Add multilayer map suggestions
+    if (showMultilayerMap && multilayerMapData) {
+      multilayerMapData.features.forEach((feature, index) => {
+        if (feature.geometry.type === 'Point' && feature.properties) {
+          const coords = feature.geometry.coordinates as [number, number];
+          suggestions.push({
+            id: `multilayer-${index}`,
+            label: feature.properties.hostname || feature.properties.label || `Node ${index}`,
+            type: 'multilayer',
+            latitude: coords[1],
+            longitude: coords[0],
+            metadata: {
+              manufacture: feature.properties.manufacture,
+              platform: feature.properties.platform,
+              witel: feature.properties.witel,
+              sto: feature.properties.sto_l,
+              reg: feature.properties.reg
+            }
+          });
+        }
+      });
+    }
+
+    // Add node edges suggestions
+    if (showNodeEdgesLayer && nodeEdgesData) {
+      nodeEdgesData.nodes.forEach((node) => {
+        suggestions.push({
+          id: `nodeedges-${node.id}`,
+          label: node.hostname || node.label || node.id,
+          type: 'nodeedges',
+          latitude: node.y,
+          longitude: node.x,
+          metadata: {
+            manufacture: node.manufacture,
+            platform: node.platform,
+            witel: node.witel,
+            sto: node.sto_l,
+            reg: node.reg
+          }
+        });
+      });
+    }
+
+    setSearchSuggestions(suggestions);
+  }, [showCapacityLayer, capacityData, showSirkitLayer, sirkitData, showMultilayerMap, multilayerMapData, showNodeEdgesLayer, nodeEdgesData]);
+
+  // Search handler with navigation
+  const handleSearch = (query: string, suggestion?: {
+    id: string;
+    label: string;
+    type: string;
+    latitude: number;
+    longitude: number;
+    metadata?: Record<string, any>;
+  }) => {
     setSearchQuery(query);
+
+    if (suggestion && map.current) {
+      // Navigate to the selected node/point
+      map.current.flyTo({
+        center: [suggestion.longitude, suggestion.latitude],
+        zoom: 15,
+        duration: 2000,
+        essential: true
+      });
+
+      // Show a popup at the location
+      setTimeout(() => {
+        if (map.current) {
+          new maplibregl.Popup({
+            closeButton: true,
+            closeOnClick: false
+          })
+            .setLngLat([suggestion.longitude, suggestion.latitude])
+            .setHTML(`
+              <div style="font-size: 12px; padding: 8px; max-width: 280px;">
+                <strong style="font-size: 14px; color: #4F46E5;">📍 ${suggestion.label}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+                  <strong>Type:</strong> <span>${suggestion.type}</span>
+                  ${suggestion.metadata?.manufacture ? `<strong>Manufacture:</strong> <span>${suggestion.metadata.manufacture}</span>` : ''}
+                  ${suggestion.metadata?.platform ? `<strong>Platform:</strong> <span>${suggestion.metadata.platform}</span>` : ''}
+                  ${suggestion.metadata?.witel ? `<strong>Witel:</strong> <span>${suggestion.metadata.witel}</span>` : ''}
+                  ${suggestion.metadata?.sto ? `<strong>STO:</strong> <span>${suggestion.metadata.sto}</span>` : ''}
+                  ${suggestion.metadata?.reg ? `<strong>Region:</strong> <span>${suggestion.metadata.reg}</span>` : ''}
+                </div>
+              </div>
+            `)
+            .addTo(map.current);
+        }
+      }, 2100);
+
+      // Show toast notification
+      setToastMessage(`Navigating to ${suggestion.label}`);
+      setToastType("success");
+      setShowToast(true);
+    } else if (query.trim()) {
+      // Fallback: search by text in suggestions
+      const found = searchSuggestions.find(s => 
+        s.label.toLowerCase().includes(query.toLowerCase())
+      );
+      
+      if (found && map.current) {
+        handleSearch(query, found);
+      } else {
+        setToastMessage(`No results found for "${query}"`);
+        setToastType("error");
+        setShowToast(true);
+      }
+    }
   };
 
   // Level change handler
@@ -2473,7 +2773,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       />
 
       {/* Search Bar */}
-      <CompactSearchBar onSearch={handleSearch} />
+      <CompactSearchBar onSearch={handleSearch} suggestions={searchSuggestions} />
 
       {/* Draggable Network Hierarchy Panel */}
       <DraggableNetworkHierarchy
