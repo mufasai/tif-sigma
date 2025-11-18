@@ -1102,9 +1102,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Platform:</strong> <span>${props?.platform || "N/A"}</span>
                   <strong>STO:</strong> <span>${props?.sto_l || props?.sto || "N/A"}</span>
                   <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
-                  <strong>Region:</strong> <span>${props?.reg || "N/A"}</span>
-                  <strong>Card Type:</strong> <span>${props?.tipe_card || "N/A"}</span>
-                  <strong>Capacity:</strong> <span>${props?.capacity || "N/A"}</span>
+                  <strong>Region:</strong> <span>${props?.reg || "N/A"}</span> 
+                  <strong>Capacity:</strong> <span>${props?.cap || "N/A"}</span>
                   <strong>Port Used:</strong> <span style="color: #E74C3C;">${props?.port_used || "0"}</span>
                   <strong>Port Idle:</strong> <span style="color: #2ECC71;">${props?.port_idle || "0"}</span>
                 </div>
