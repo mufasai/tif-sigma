@@ -194,7 +194,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     const loadCapacityData = async () => {
       try {
-        const response = await fetch("/data/capacity-polygon-5k.csv");
+        const response = await fetch("/data/cap-1.csv");
         if (!response.ok) {
           throw new Error("Failed to load capacity data");
         }
@@ -989,74 +989,74 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       // eslint-disable-next-line no-console
       console.log(`Created ${lineFeatures.length} line connections`);
 
-      if (lineFeatures.length > 0) {
-        // Validate line features
-        const validLineFeatures = lineFeatures.filter((feature) => {
-          const coords = feature.geometry.coordinates;
-          const isValid =
-            coords.length === 2 &&
-            coords.every(
-              (coord) =>
-                Array.isArray(coord) &&
-                coord.length === 2 &&
-                !isNaN(coord[0]) &&
-                !isNaN(coord[1]) &&
-                Math.abs(coord[0]) <= 180 &&
-                Math.abs(coord[1]) <= 90,
-            );
-          if (!isValid) {
-            // eslint-disable-next-line no-console
-            console.warn("Invalid line feature:", feature);
-          }
-          return isValid;
-        });
+      // if (lineFeatures.length > 0) {
+      //   // Validate line features
+      //   const validLineFeatures = lineFeatures.filter((feature) => {
+      //     const coords = feature.geometry.coordinates;
+      //     const isValid =
+      //       coords.length === 2 &&
+      //       coords.every(
+      //         (coord) =>
+      //           Array.isArray(coord) &&
+      //           coord.length === 2 &&
+      //           !isNaN(coord[0]) &&
+      //           !isNaN(coord[1]) &&
+      //           Math.abs(coord[0]) <= 180 &&
+      //           Math.abs(coord[1]) <= 90,
+      //       );
+      //     if (!isValid) {
+      //       // eslint-disable-next-line no-console
+      //       console.warn("Invalid line feature:", feature);
+      //     }
+      //     return isValid;
+      //   });
 
-        // eslint-disable-next-line no-console
-        console.log(`Valid line features: ${validLineFeatures.length}`);
+      //   // eslint-disable-next-line no-console
+      //   console.log(`Valid line features: ${validLineFeatures.length}`);
 
-        map.current.addSource("capacity-lines", {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: validLineFeatures,
-          },
-        });
+      //   map.current.addSource("capacity-lines", {
+      //     type: "geojson",
+      //     data: {
+      //       type: "FeatureCollection",
+      //       features: validLineFeatures,
+      //     },
+      //   });
 
-        // Add glow effect layer FIRST (bottom layer)
-        map.current.addLayer({
-          id: "capacity-lines-glow",
-          type: "line",
-          source: "capacity-lines",
-          paint: {
-            "line-color": [
-              "case",
-              ["==", ["get", "sto"], "cross-sto"],
-              "#FFD700", // Gold for cross-STO connections
-              "#FF6B35", // Orange for same-STO connections
-            ],
-            "line-width": 6,
-            "line-opacity": 0.3,
-            "line-blur": 3,
-          },
-        });
+      //   // Add glow effect layer FIRST (bottom layer)
+      //   map.current.addLayer({
+      //     id: "capacity-lines-glow",
+      //     type: "line",
+      //     source: "capacity-lines",
+      //     paint: {
+      //       "line-color": [
+      //         "case",
+      //         ["==", ["get", "sto"], "cross-sto"],
+      //         "#FFD700", // Gold for cross-STO connections
+      //         "#FF6B35", // Orange for same-STO connections
+      //       ],
+      //       "line-width": 6,
+      //       "line-opacity": 0.3,
+      //       "line-blur": 3,
+      //     },
+      //   });
 
-        // Add main line layer on top of glow
-        map.current.addLayer({
-          id: "capacity-lines",
-          type: "line",
-          source: "capacity-lines",
-          paint: {
-            "line-color": [
-              "case",
-              ["==", ["get", "sto"], "cross-sto"],
-              "#FFA500", // Orange for cross-STO connections
-              "#FF0000", // Red for same-STO connections
-            ],
-            "line-width": 2,
-            "line-opacity": 0.8,
-          },
-        });
-      }
+      //   // Add main line layer on top of glow
+      //   map.current.addLayer({
+      //     id: "capacity-lines",
+      //     type: "line",
+      //     source: "capacity-lines",
+      //     paint: {
+      //       "line-color": [
+      //         "case",
+      //         ["==", ["get", "sto"], "cross-sto"],
+      //         "#FFA500", // Orange for cross-STO connections
+      //         "#FF0000", // Red for same-STO connections
+      //       ],
+      //       "line-width": 2,
+      //       "line-opacity": 0.8,
+      //     },
+      //   });
+      // }
 
       // Add points source AFTER lines
       map.current.addSource("capacity", {
@@ -1104,7 +1104,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
                   <strong>Region:</strong> <span>${props?.reg || "N/A"}</span>
                   <strong>Card Type:</strong> <span>${props?.tipe_card || "N/A"}</span>
-                  <strong>Capacity:</strong> <span>${props?.cap || "N/A"}</span>
+                  <strong>Capacity:</strong> <span>${props?.capacity || "N/A"}</span>
                   <strong>Port Used:</strong> <span style="color: #E74C3C;">${props?.port_used || "0"}</span>
                   <strong>Port Idle:</strong> <span style="color: #2ECC71;">${props?.port_idle || "0"}</span>
                 </div>

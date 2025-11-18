@@ -637,7 +637,7 @@ export function LeftSidebar({
                 >
                   <option value="none">Pilih Layer</option>
                   <option value="capacity" disabled={capacityDataLength === 0}>
-                    Capacity Polygons {capacityDataLength === 0 ? '(Loading...)' : `(${capacityDataLength} points)`}
+                    Capacity Polygons
                   </option>
                   {/* <option value="sirkit" disabled={sirkitDataLength === 0}>
                     Sirkit (Circuit + Boundary) {sirkitDataLength === 0 ? '(Loading...)' : `(${sirkitDataLength} circuits)`}
