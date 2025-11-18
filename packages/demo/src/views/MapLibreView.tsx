@@ -139,6 +139,15 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     longitude: number;
     metadata?: Record<string, any>;
   }>>([]);
+  const [platformFilters, setPlatformFilters] = useState<string[]>([]);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<{
+    id: string;
+    label: string;
+    type: string;
+    latitude: number;
+    longitude: number;
+    metadata?: Record<string, any>;
+  }>>([]);
 
   // const handleClose = () => {
   //   if (onClose) {
@@ -2557,7 +2566,162 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
 
     setSearchSuggestions(suggestions);
+
+    // Extract unique platforms from suggestions
+    const platforms = new Set<string>();
+    suggestions.forEach(suggestion => {
+      if (suggestion.metadata?.platform && suggestion.metadata.platform !== 'N/A') {
+        platforms.add(suggestion.metadata.platform);
+      }
+    });
+    setPlatformFilters(Array.from(platforms).sort());
   }, [showCapacityLayer, capacityData, showSirkitLayer, sirkitData, showMultilayerMap, multilayerMapData, showNodeEdgesLayer, nodeEdgesData]);
+
+  // Clear filter handler - removes highligd resets filtered suggestions
+  const handleClearFilter = () => {
+    // Clear filtered suggestions
+    setFilteredSuggestions([]);
+
+    // Remove highlight layer from map
+    if (map.current) {
+      if (map.current.getLayer('filtered-nodes-highlight')) {
+        map.current.removeLayer('filtered-nodes-highlight');
+      }
+      if (map.current.getSource('filtered-nodes')) {
+        map.current.removeSource('filtered-nodes');
+      }
+    }
+
+    // Show toast notification
+    setToastMessage('Filter cleared');
+    setToastType('info');
+    setShowToast(true);
+  };
+
+  // Platform filter click handler
+  const handlePlatformFilterClick = (platform: string) => {
+    // Filter suggestions by platform
+    const filtered = searchSuggestions.filter(suggestion => 
+      suggestion.metadata?.platform?.toLowerCase() === platform.toLowerCase()
+    );
+    
+    setFilteredSuggestions(filtered);
+
+    // Show toast with filter results
+    setToastMessage(`Found ${filtered.length} nodes with platform: ${platform}`);
+    setToastType("info");
+    setShowToast(true);
+
+    // If only one result, navigate to it automatically
+    if (filtered.length === 1 && map.current) {
+      const node = filtered[0];
+      setTimeout(() => {
+        handleSearch(node.label, node);
+      }, 500);
+    } else if (filtered.length > 1 && map.current) {
+      // Add highlight layer for filtered nodes
+      if (map.current.getLayer('filtered-nodes-highlight')) {
+        map.current.removeLayer('filtered-nodes-highlight');
+      }
+      if (map.current.getSource('filtered-nodes')) {
+        map.current.removeSource('filtered-nodes');
+      }
+
+      // Create GeoJSON for filtered nodes
+      const filteredFeatures = filtered.map(node => ({
+        type: 'Feature' as const,
+        properties: {
+          label: node.label,
+          platform: node.metadata?.platform || 'N/A'
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [node.longitude, node.latitude]
+        }
+      }));
+
+      map.current.addSource('filtered-nodes', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: filteredFeatures
+        }
+      });
+
+      map.current.addLayer({
+        id: 'filtered-nodes-highlight',
+        type: 'circle',
+        source: 'filtered-nodes',
+        paint: {
+          'circle-radius': 9,
+          'circle-color': '#1c9cc3ff',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#FFFFFF',
+          'circle-opacity': 0.8
+        }
+      });
+
+      // Add click handler for highlighted nodes
+      map.current.on('click', 'filtered-nodes-highlight', (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(`
+              <div style="font-size: 12px; padding: 8px;">
+                <strong style="font-size: 14px; color: #4F46E5;">📍 ${props?.label || 'Node'}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <strong>Platform:</strong> ${props?.platform || 'N/A'}<br/>
+                <div style="margin-top: 8px; font-size: 11px; color: #6B7280;">
+                  Click to view details
+                </div>
+              </div>
+            `)
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on('mouseenter', 'filtered-nodes-highlight', () => {
+        map.current!.getCanvas().style.cursor = 'pointer';
+      });
+
+      map.current.on('mouseleave', 'filtered-nodes-highlight', () => {
+        map.current!.getCanvas().style.cursor = '';
+      });
+
+      // Fit map to show all filtered nodes
+      const lngs = filtered.map(n => n.longitude);
+      const lats = filtered.map(n => n.latitude);
+      const bounds = {
+        minLng: Math.min(...lngs),
+        maxLng: Math.max(...lngs),
+        minLat: Math.min(...lats),
+        maxLat: Math.max(...lats),
+      };
+
+      map.current.fitBounds(
+        [
+          [bounds.minLng, bounds.minLat],
+          [bounds.maxLng, bounds.maxLat],
+        ],
+        {
+          padding: 100,
+          duration: 1500,
+        }
+      );
+    } else if (filtered.length === 0) {
+      // Remove highlight layer if no results
+      if (map.current && map.current.getLayer('filtered-nodes-highlight')) {
+        map.current.removeLayer('filtered-nodes-highlight');
+      }
+      if (map.current && map.current.getSource('filtered-nodes')) {
+        map.current.removeSource('filtered-nodes');
+      }
+    }
+  };
 
   // Search handler with navigation
   const handleSearch = (query: string, suggestion?: {
@@ -2569,6 +2733,18 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     metadata?: Record<string, any>;
   }) => {
     setSearchQuery(query);
+
+    // Clear filtered suggestions when searching
+    if (filteredSuggestions.length > 0) {
+      setFilteredSuggestions([]);
+      // Remove highlight layer
+      if (map.current && map.current.getLayer('filtered-nodes-highlight')) {
+        map.current.removeLayer('filtered-nodes-highlight');
+      }
+      if (map.current && map.current.getSource('filtered-nodes')) {
+        map.current.removeSource('filtered-nodes');
+      }
+    }
 
     if (suggestion && map.current) {
       // Navigate to the selected node/point
@@ -2773,7 +2949,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       />
 
       {/* Search Bar */}
-      <CompactSearchBar onSearch={handleSearch} suggestions={searchSuggestions} />
+      <CompactSearchBar 
+        onSearch={handleSearch} 
+        suggestions={filteredSuggestions.length > 0 ? filteredSuggestions : searchSuggestions}
+        platformFilters={platformFilters}
+        onFilterClick={handlePlatformFilterClick}
+        onClearFilter={handleClearFilter}
+      />
 
       {/* Draggable Network Hierarchy Panel */}
       <DraggableNetworkHierarchy

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { FiSearch, FiNavigation, FiFilter, FiX, FiPlus, FiMapPin, FiTarget } from 'react-icons/fi';
+import { FiSearch, FiNavigation, FiFilter, FiX, FiMapPin, FiTarget } from 'react-icons/fi';
 
 export interface SearchSuggestion {
   id: string;
@@ -13,9 +13,12 @@ export interface SearchSuggestion {
 interface CompactSearchBarProps {
   onSearch: (query: string, suggestion?: SearchSuggestion) => void;
   suggestions?: SearchSuggestion[];
+  platformFilters?: string[];
+  onFilterClick?: (platform: string) => void;
+  onClearFilter?: () => void;
 }
 
-export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBarProps) {
+export function CompactSearchBar({ onSearch, suggestions = [], platformFilters = [], onFilterClick, onClearFilter }: CompactSearchBarProps) {
   const [query, setQuery] = useState('');
   const [startPoint, setStartPoint] = useState('');
   const [endPoint, setEndPoint] = useState('');
@@ -119,6 +122,10 @@ export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBa
         setEndPoint(tag);
       }
     } else {
+      // Call parent filter handler if provided
+      if (onFilterClick) {
+        onFilterClick(tag);
+      }
       setQuery(tag);
     }
     setShowFilters(false);
@@ -144,6 +151,10 @@ export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBa
               onChange={(e) => {
                 setQuery(e.target.value);
                 setSelectedSuggestion(null);
+                // Clear filter when user starts typing (if query becomes empty)
+                if (e.target.value === '' && onClearFilter) {
+                  onClearFilter();
+                }
               }}
               onKeyDown={handleKeyDown}
               onFocus={() => {
@@ -169,6 +180,10 @@ export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBa
                   setQuery('');
                   setSelectedSuggestion(null);
                   setShowSuggestions(false);
+                  // Call clear filter handler to remove highlight layer
+                  if (onClearFilter) {
+                    onClearFilter();
+                  }
                 }}
                 style={{
                   background: 'none',
@@ -180,12 +195,13 @@ export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBa
                   justifyContent: 'center',
                   color: '#9CA3AF'
                 }}
+                title="Clear search and filters"
               >
                 <FiX style={{ width: '14px', height: '14px' }} />
               </button>
             )}
             <div style={{ height: '16px', width: '1px', background: '#E5E7EB' }}></div>
-            <button
+            {/* <button
               onClick={toggleRouteMode}
               title="Route Planning Mode"
               style={{
@@ -202,7 +218,7 @@ export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBa
               }}
             >
               <FiPlus style={{ width: '16px', height: '16px' }} />
-            </button>
+            </button> */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               title="Filters"
@@ -259,27 +275,43 @@ export function CompactSearchBar({ onSearch, suggestions = [] }: CompactSearchBa
 
           {showFilters && (
             <div style={{ borderTop: '1px solid rgba(0,0,0,0.05)', padding: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: '600', marginBottom: '8px' }}>Quick Filters:</div>
+              <div style={{ fontSize: '12px', color: '#6B7280', fontWeight: '600', marginBottom: '8px' }}>
+                Platform Filters {platformFilters.length > 0 ? `(${platformFilters.length} available)` : ''}:
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {['CISCO', 'HUAWEI', 'NOKIA', 'Active', 'Inactive', 'High Utilization'].map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => handleFilterClick(tag)}
-                    style={{
-                      fontSize: '12px',
-                      padding: '6px 12px',
-                      background: 'rgba(255,255,255,0.6)',
-                      backdropFilter: 'blur(4px)',
-                      borderRadius: '8px',
-                      color: '#374151',
-                      transition: 'all 0.2s',
-                      border: '1px solid rgba(0,0,0,0.05)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {tag}
-                  </button>
-                ))}
+                {platformFilters.length > 0 ? (
+                  platformFilters.map((platform) => (
+                    <button
+                      key={platform}
+                      onClick={() => handleFilterClick(platform)}
+                      style={{
+                        fontSize: '12px',
+                        padding: '6px 12px',
+                        background: 'rgba(255,255,255,0.6)',
+                        backdropFilter: 'blur(4px)',
+                        borderRadius: '8px',
+                        color: '#374151',
+                        transition: 'all 0.2s',
+                        border: '1px solid rgba(0,0,0,0.05)',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(79, 70, 229, 0.15)';
+                        e.currentTarget.style.borderColor = 'rgba(79, 70, 229, 0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.6)';
+                        e.currentTarget.style.borderColor = 'rgba(0,0,0,0.05)';
+                      }}
+                    >
+                      {platform}
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ fontSize: '11px', color: '#9CA3AF', fontStyle: 'italic' }}>
+                    No platforms available. Please select a layer first.
+                  </div>
+                )}
               </div>
             </div>
           )}

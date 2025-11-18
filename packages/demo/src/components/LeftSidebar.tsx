@@ -500,7 +500,7 @@ export function LeftSidebar({
                 color: '#1F2937',
                 marginBottom: '2px'
               }}>
-                VNIP
+                TIF
               </div>
               <div style={{
                 fontSize: '11px',
