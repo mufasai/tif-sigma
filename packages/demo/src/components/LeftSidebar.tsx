@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   FiBarChart2,
   FiChevronLeft,
@@ -27,6 +27,7 @@ interface NodeItem {
   y: number;
   size: number;
   topology?: TopologyItem[];
+  layer?: string;
 }
 
 interface LeftSidebarProps {
@@ -48,6 +49,8 @@ interface LeftSidebarProps {
   ruasRekapData?: { nodes: NodeItem[]; edges: unknown[] } | null;
   _filteredRuasNodes?: string[];
   onFilterRuasNodes?: (nodeIds: string[]) => void;
+  ruasRekapStoDataAvailable?: boolean;
+  ruasRekapStoData?: { nodes: NodeItem[]; edges: unknown[] } | null;
   isLayerLoading?: boolean;
 }
 
@@ -68,6 +71,8 @@ export function LeftSidebar({
   ruasRekapData = null,
   // _filteredRuasNodes = [],
   onFilterRuasNodes,
+  ruasRekapStoDataAvailable = false,
+  ruasRekapStoData = null,
   isLayerLoading = false,
 }: LeftSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -77,45 +82,89 @@ export function LeftSidebar({
   const [ruasSearchQuery, setRuasSearchQuery] = useState("");
   const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
   const [selectAllLayers, setSelectAllLayers] = useState(true);
+  const isInitializingRef = useRef(false);
 
-  // Get unique layers from ruas rekap data
+  // Get unique layers from ruas rekap data (support both datasets)
   const getUniqueLayers = React.useMemo(() => {
-    if (!ruasRekapData?.nodes) return [];
+    const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
+    if (!currentData?.nodes) return [];
     const layersSet = new Set<string>();
-    ruasRekapData.nodes.forEach((node) => {
-      if (node.topology && Array.isArray(node.topology)) {
-        node.topology.forEach((topo) => {
-          if (topo.layer) {
-            layersSet.add(topo.layer);
-          }
-        });
-      }
-    });
+
+    if (selectedLayer === "ruasrekapsto") {
+      // For Ruas Rekap STO: layer is directly on node
+      currentData.nodes.forEach((node) => {
+        if (node.layer) {
+          layersSet.add(node.layer);
+        }
+      });
+    } else {
+      // For Ruas Rekap: layer is in topology array
+      currentData.nodes.forEach((node) => {
+        if (node.topology && Array.isArray(node.topology)) {
+          node.topology.forEach((topo) => {
+            if (topo.layer) {
+              layersSet.add(topo.layer);
+            }
+          });
+        }
+      });
+    }
     return Array.from(layersSet).sort();
-  }, [ruasRekapData]);
+  }, [ruasRekapData, ruasRekapStoData, selectedLayer]);
 
   // Initialize filter panel when ruas rekap is selected
   React.useEffect(() => {
     if (selectedLayer === "ruasrekap" && ruasRekapData) {
+      isInitializingRef.current = true;
       setShowRuasFilter(true);
-      // Initialize with all layers selected (show all by default)
       const allLayers = new Set(getUniqueLayers);
       setSelectedLayers(allLayers);
       setSelectAllLayers(true);
-      if (onFilterRuasNodes) {
-        // Get all nodes to show by default
-        const allNodeIds = ruasRekapData.nodes
-          .filter((node) => {
-            if (!node.topology || !Array.isArray(node.topology)) return false;
-            return node.topology.some((topo) => topo.layer && allLayers.has(topo.layer));
-          })
-          .map((node) => node.id);
-        onFilterRuasNodes(allNodeIds);
-      }
-    } else {
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 100);
+    } else if (selectedLayer === "ruasrekapsto" && ruasRekapStoData) {
+      isInitializingRef.current = true;
+      setShowRuasFilter(true);
+      const allLayers = new Set(getUniqueLayers);
+      setSelectedLayers(allLayers);
+      setSelectAllLayers(true);
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 100);
+    } else if (selectedLayer !== "ruasrekap" && selectedLayer !== "ruasrekapsto") {
       setShowRuasFilter(false);
     }
-  }, [selectedLayer, ruasRekapData, onFilterRuasNodes, getUniqueLayers]);
+  }, [selectedLayer, ruasRekapData, ruasRekapStoData, getUniqueLayers]);
+
+  // Apply filter when selected layers change (but not during initialization)
+  React.useEffect(() => {
+    if (isInitializingRef.current || !showRuasFilter || !onFilterRuasNodes) return;
+
+    const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
+    if (!currentData) return;
+
+    if (selectedLayers.size === 0) {
+      onFilterRuasNodes([]);
+      return;
+    }
+
+    // Filter nodes based on selected layers
+    let filteredNodeIds: string[] = [];
+    if (selectedLayer === "ruasrekapsto") {
+      filteredNodeIds = currentData.nodes
+        .filter((node) => node.layer && selectedLayers.has(node.layer))
+        .map((node) => node.id);
+    } else {
+      filteredNodeIds = currentData.nodes
+        .filter((node) => {
+          if (!node.topology || !Array.isArray(node.topology)) return false;
+          return node.topology.some((topo) => topo.layer && selectedLayers.has(topo.layer));
+        })
+        .map((node) => node.id);
+    }
+    onFilterRuasNodes(filteredNodeIds);
+  }, [selectedLayers, showRuasFilter, selectedLayer, ruasRekapData, ruasRekapStoData, onFilterRuasNodes]);
 
   const menuItems = [
     {
@@ -703,8 +752,8 @@ export function LeftSidebar({
                     onChange={(e) => {
                       const newValue = e.target.value;
                       onLayerChange(newValue);
-                      // Show filter panel only for ruas rekap
-                      setShowRuasFilter(newValue === "ruasrekap");
+                      // Show filter panel only for ruas rekap or ruas rekap sto
+                      setShowRuasFilter(newValue === "ruasrekap" || newValue === "ruasrekapsto");
                     }}
                     style={{
                       width: "100%",
@@ -726,6 +775,10 @@ export function LeftSidebar({
                       Ruas Rekap{" "}
                       {!ruasRekapDataAvailable ? "(Loading...)" : `(${ruasRekapData?.nodes?.length || 0} nodes)`}
                     </option>
+                    <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
+                      Ruas Rekap STO{" "}
+                      {!ruasRekapStoDataAvailable ? "(Loading...)" : `(${ruasRekapStoData?.nodes?.length || 0} nodes)`}
+                    </option>
                     <option value="capacity" disabled={capacityDataLength === 0}>
                       Capacity Polygons
                     </option>
@@ -740,7 +793,7 @@ export function LeftSidebar({
               )}
 
               {/* Ruas Rekap Filter Panel - Filter by Layer */}
-              {showRuasFilter && ruasRekapData && onFilterRuasNodes && (
+              {showRuasFilter && (ruasRekapData || ruasRekapStoData) && onFilterRuasNodes && (
                 <div
                   style={{
                     marginTop: "12px",
@@ -778,18 +831,9 @@ export function LeftSidebar({
                           // Select All: show all nodes by selecting all layers
                           const allLayers = new Set(getUniqueLayers);
                           setSelectedLayers(allLayers);
-                          // Get all nodes that have at least one topology with any layer
-                          const allNodeIds = ruasRekapData.nodes
-                            .filter((node) => {
-                              if (!node.topology || !Array.isArray(node.topology)) return false;
-                              return node.topology.some((topo) => topo.layer && allLayers.has(topo.layer));
-                            })
-                            .map((node) => node.id);
-                          onFilterRuasNodes(allNodeIds);
                         } else {
                           // Deselect All: hide all nodes by clearing selection
                           setSelectedLayers(new Set());
-                          onFilterRuasNodes([]); // Empty array means show nothing when no layers selected
                         }
                       }}
                       style={{
@@ -842,11 +886,19 @@ export function LeftSidebar({
                       .filter((layer) => layer.toLowerCase().includes(ruasSearchQuery.toLowerCase()))
                       .map((layer) => {
                         const isSelected = selectedLayers.has(layer);
+                        const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
                         // Count nodes that have this layer
-                        const nodeCount = ruasRekapData.nodes.filter((node) => {
-                          if (!node.topology || !Array.isArray(node.topology)) return false;
-                          return node.topology.some((topo) => topo.layer === layer);
-                        }).length;
+                        let nodeCount = 0;
+                        if (currentData) {
+                          if (selectedLayer === "ruasrekapsto") {
+                            nodeCount = currentData.nodes.filter((node) => node.layer === layer).length;
+                          } else {
+                            nodeCount = currentData.nodes.filter((node) => {
+                              if (!node.topology || !Array.isArray(node.topology)) return false;
+                              return node.topology.some((topo) => topo.layer === layer);
+                            }).length;
+                          }
+                        }
 
                         return (
                           <label
@@ -887,30 +939,12 @@ export function LeftSidebar({
                                 }
                                 setSelectedLayers(newSelected);
 
-                                // Filter nodes based on selected layers
+                                // Update select all state
                                 if (newSelected.size === 0) {
-                                  // No layers selected - hide all nodes
-                                  onFilterRuasNodes([]);
                                   setSelectAllLayers(false);
                                 } else if (newSelected.size === getUniqueLayers.length) {
-                                  // All layers selected - show all nodes
-                                  const allNodeIds = ruasRekapData.nodes
-                                    .filter((node) => {
-                                      if (!node.topology || !Array.isArray(node.topology)) return false;
-                                      return node.topology.some((topo) => topo.layer && newSelected.has(topo.layer));
-                                    })
-                                    .map((node) => node.id);
-                                  onFilterRuasNodes(allNodeIds);
                                   setSelectAllLayers(true);
                                 } else {
-                                  // Some layers selected - filter nodes that have at least one topology with selected layers
-                                  const filteredNodeIds = ruasRekapData.nodes
-                                    .filter((node) => {
-                                      if (!node.topology || !Array.isArray(node.topology)) return false;
-                                      return node.topology.some((topo) => topo.layer && newSelected.has(topo.layer));
-                                    })
-                                    .map((node) => node.id);
-                                  onFilterRuasNodes(filteredNodeIds);
                                   setSelectAllLayers(false);
                                 }
                               }}
