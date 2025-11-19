@@ -1,15 +1,34 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from "react";
 import {
+  FiBarChart2,
+  FiChevronLeft,
+  FiChevronRight,
   FiHome,
   FiLayers,
   FiMap,
-  FiBarChart2,
-  FiSettings,
-  FiChevronLeft,
-  FiChevronRight,
   FiMenu,
-  FiX
-} from 'react-icons/fi';
+  FiSettings,
+  FiX,
+} from "react-icons/fi";
+
+interface TopologyItem {
+  capacity?: number;
+  layer?: string;
+  ruas?: string;
+  source?: string;
+  target?: string;
+  [key: string]: unknown;
+}
+
+interface NodeItem {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  size: number;
+  topology?: TopologyItem[];
+  layer?: string;
+}
 
 interface LeftSidebarProps {
   onMenuClick: (menu: string) => void;
@@ -26,81 +45,189 @@ interface LeftSidebarProps {
   airportsDataAvailable?: boolean;
   multilayerMapDataAvailable?: boolean;
   nodeEdgesDataAvailable?: boolean;
+  ruasRekapDataAvailable?: boolean;
+  ruasRekapData?: { nodes: NodeItem[]; edges: unknown[] } | null;
+  _filteredRuasNodes?: string[];
+  onFilterRuasNodes?: (nodeIds: string[]) => void;
+  ruasRekapStoDataAvailable?: boolean;
+  ruasRekapStoData?: { nodes: NodeItem[]; edges: unknown[] } | null;
   isLayerLoading?: boolean;
 }
 
 export function LeftSidebar({
   onMenuClick,
   activeMenu,
-  showKabupatenLayer = false,
-  kabupatenLoaded = false,
-  onToggleKabupaten,
-  selectedLayer = 'none', 
+  // showKabupatenLayer = false,
+  // kabupatenLoaded = false,
+  // onToggleKabupaten,
+  selectedLayer = "none",
   onLayerChange,
   capacityDataLength = 0,
   // sirkitDataLength = 0,
   // airportsDataAvailable = false,
   multilayerMapDataAvailable = false,
   nodeEdgesDataAvailable = false,
-  isLayerLoading = false
+  ruasRekapDataAvailable = false,
+  ruasRekapData = null,
+  // _filteredRuasNodes = [],
+  onFilterRuasNodes,
+  ruasRekapStoDataAvailable = false,
+  ruasRekapStoData = null,
+  isLayerLoading = false,
 }: LeftSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  // Ruas Rekap filtering states
+  const [showRuasFilter, setShowRuasFilter] = useState(false);
+  const [ruasSearchQuery, setRuasSearchQuery] = useState("");
+  const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
+  const [selectAllLayers, setSelectAllLayers] = useState(true);
+  const isInitializingRef = useRef(false);
+
+  // Get unique layers from ruas rekap data (support both datasets)
+  const getUniqueLayers = React.useMemo(() => {
+    const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
+    if (!currentData?.nodes) return [];
+    const layersSet = new Set<string>();
+
+    if (selectedLayer === "ruasrekapsto") {
+      // For Ruas Rekap STO: layer is directly on node
+      currentData.nodes.forEach((node) => {
+        if (node.layer) {
+          layersSet.add(node.layer);
+        }
+      });
+    } else {
+      // For Ruas Rekap: layer is in topology array
+      currentData.nodes.forEach((node) => {
+        if (node.topology && Array.isArray(node.topology)) {
+          node.topology.forEach((topo) => {
+            if (topo.layer) {
+              layersSet.add(topo.layer);
+            }
+          });
+        }
+      });
+    }
+    return Array.from(layersSet).sort();
+  }, [ruasRekapData, ruasRekapStoData, selectedLayer]);
+
+  // Initialize filter panel when ruas rekap is selected
+  React.useEffect(() => {
+    if (selectedLayer === "ruasrekap" && ruasRekapData) {
+      isInitializingRef.current = true;
+      setShowRuasFilter(true);
+      const allLayers = new Set(getUniqueLayers);
+      setSelectedLayers(allLayers);
+      setSelectAllLayers(true);
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 100);
+    } else if (selectedLayer === "ruasrekapsto" && ruasRekapStoData) {
+      isInitializingRef.current = true;
+      setShowRuasFilter(true);
+      const allLayers = new Set(getUniqueLayers);
+      setSelectedLayers(allLayers);
+      setSelectAllLayers(true);
+      setTimeout(() => {
+        isInitializingRef.current = false;
+      }, 100);
+    } else if (selectedLayer !== "ruasrekap" && selectedLayer !== "ruasrekapsto") {
+      setShowRuasFilter(false);
+    }
+  }, [selectedLayer, ruasRekapData, ruasRekapStoData, getUniqueLayers]);
+
+  // Apply filter when selected layers change (but not during initialization)
+  React.useEffect(() => {
+    if (isInitializingRef.current || !showRuasFilter || !onFilterRuasNodes) return;
+
+    const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
+    if (!currentData) return;
+
+    if (selectedLayers.size === 0) {
+      onFilterRuasNodes([]);
+      return;
+    }
+
+    // Filter nodes based on selected layers
+    let filteredNodeIds: string[] = [];
+    if (selectedLayer === "ruasrekapsto") {
+      filteredNodeIds = currentData.nodes
+        .filter((node) => node.layer && selectedLayers.has(node.layer))
+        .map((node) => node.id);
+    } else {
+      filteredNodeIds = currentData.nodes
+        .filter((node) => {
+          if (!node.topology || !Array.isArray(node.topology)) return false;
+          return node.topology.some((topo) => topo.layer && selectedLayers.has(topo.layer));
+        })
+        .map((node) => node.id);
+    }
+    onFilterRuasNodes(filteredNodeIds);
+  }, [selectedLayers, showRuasFilter, selectedLayer, ruasRekapData, ruasRekapStoData, onFilterRuasNodes]);
 
   const menuItems = [
     {
-      id: 'dashboard',
+      id: "dashboard",
       icon: FiHome,
-      label: 'Dashboard',
-      color: '#3B82F6',
-      description: 'Main overview',
-      badge: '5'
+      label: "Dashboard",
+      color: "#3B82F6",
+      description: "Main overview",
+      badge: "5",
     },
     {
-      id: 'topology',
+      id: "topology",
       icon: FiMap,
-      label: 'Topology',
-      color: '#8B5CF6',
-      description: 'Network view',
-      badge: '12'
+      label: "Topology",
+      color: "#8B5CF6",
+      description: "Network view",
+      badge: "12",
     },
     {
-      id: 'layers',
+      id: "layers",
       icon: FiLayers,
-      label: 'Layers',
-      color: '#10B981',
-      description: 'Map layers',
-      badge: ''
+      label: "Layers",
+      color: "#10B981",
+      description: "Map layers",
+      badge: "",
     },
     {
-      id: 'analytics',
+      id: "analytics",
       icon: FiBarChart2,
-      label: 'Analytics',
-      color: '#F59E0B',
-      description: 'Data analysis',
-      badge: '7'
+      label: "Analytics",
+      color: "#F59E0B",
+      description: "Data analysis",
+      badge: "7",
     },
     {
-      id: 'settings',
+      id: "settings",
       icon: FiSettings,
-      label: 'Settings',
-      color: '#6B7280',
-      description: 'Configuration',
-      badge: ''
+      label: "Settings",
+      color: "#6B7280",
+      description: "Configuration",
+      badge: "",
     },
   ];
 
-  const NeumorphicContainer = ({ children, className = "", style = {} }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) => (
+  const NeumorphicContainer = ({
+    children,
+    className = "",
+    style = {},
+  }: {
+    children: React.ReactNode;
+    className?: string;
+    style?: React.CSSProperties;
+  }) => (
     <div
       className={className}
       style={{
-        background: 'linear-gradient(145deg, rgba(255,255,255,0.95), rgba(240,240,240,0.9))',
-        backdropFilter: 'blur(20px)',
-        borderRadius: '20px',
-        border: '1px solid rgba(255,255,255,0.3)',
-        boxShadow: '0 20px 40px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)',
+        background: "linear-gradient(145deg, rgba(255,255,255,0.95), rgba(240,240,240,0.9))",
+        backdropFilter: "blur(20px)",
+        borderRadius: "20px",
+        border: "1px solid rgba(255,255,255,0.3)",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)",
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        ...style
+        ...style,
       }}
     >
       {children}
@@ -111,36 +238,37 @@ export function LeftSidebar({
     onClick,
     children,
     title,
-    size = 'normal'
+    size = "normal",
   }: {
     onClick: () => void;
     children: React.ReactNode;
     title?: string;
-    size?: 'small' | 'normal';
+    size?: "small" | "normal";
   }) => (
     <button
       onClick={onClick}
       title={title}
       style={{
-        background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.7))',
-        borderRadius: '10px',
-        border: '1px solid rgba(255,255,255,0.3)',
-        boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)',
-        padding: size === 'small' ? '6px' : '8px',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#6B7280'
+        background: "linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.7))",
+        borderRadius: "10px",
+        border: "1px solid rgba(255,255,255,0.3)",
+        boxShadow: "inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)",
+        padding: size === "small" ? "6px" : "8px",
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#6B7280",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(0,0,0,0.15), 0 4px 8px rgba(0,0,0,0.1)';
-        e.currentTarget.style.transform = 'translateY(-1px)';
+        e.currentTarget.style.boxShadow =
+          "inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(0,0,0,0.15), 0 4px 8px rgba(0,0,0,0.1)";
+        e.currentTarget.style.transform = "translateY(-1px)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = 'inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)';
-        e.currentTarget.style.transform = 'translateY(0px)';
+        e.currentTarget.style.boxShadow = "inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)";
+        e.currentTarget.style.transform = "translateY(0px)";
       }}
     >
       {children}
@@ -151,19 +279,19 @@ export function LeftSidebar({
   const MapLoadingOverlay = () => (
     <div
       style={{
-        position: 'fixed',
+        position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        background: "rgba(0, 0, 0, 0.75)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         zIndex: 9999,
-        animation: 'fadeIn 0.3s ease',
+        animation: "fadeIn 0.3s ease",
       }}
     >
       <style>
@@ -181,44 +309,44 @@ export function LeftSidebar({
             100% { transform: rotate(0deg); }
           }
           @keyframes pulse {
-            0%, 100% { 
-              transform: scale(1); 
-              opacity: 1; 
+            0%, 100% {
+              transform: scale(1);
+              opacity: 1;
             }
-            50% { 
-              transform: scale(1.05); 
-              opacity: 0.7; 
+            50% {
+              transform: scale(1.05);
+              opacity: 0.7;
             }
           }
           @keyframes bounce {
-            0%, 100% { 
-              transform: translateY(0px); 
+            0%, 100% {
+              transform: translateY(0px);
             }
-            50% { 
-              transform: translateY(-8px); 
+            50% {
+              transform: translateY(-8px);
             }
           }
           @keyframes ping {
-            0% { 
-              transform: scale(0.95); 
-              opacity: 0.8; 
+            0% {
+              transform: scale(0.95);
+              opacity: 0.8;
             }
             50% {
               opacity: 0.4;
             }
-            100% { 
-              transform: scale(1.8); 
-              opacity: 0; 
+            100% {
+              transform: scale(1.8);
+              opacity: 0;
             }
           }
           @keyframes dotPulse {
-            0%, 100% { 
-              transform: scale(0.8); 
-              opacity: 0.5; 
+            0%, 100% {
+              transform: scale(0.8);
+              opacity: 0.5;
             }
-            50% { 
-              transform: scale(1.2); 
-              opacity: 1; 
+            50% {
+              transform: scale(1.2);
+              opacity: 1;
             }
           }
         `}
@@ -226,150 +354,148 @@ export function LeftSidebar({
 
       <div
         style={{
-          background: 'linear-gradient(145deg, #ffffff, #f5f5f5)',
-          borderRadius: '28px',
-          padding: '56px 48px',
-          boxShadow:
-            '0 30px 60px rgba(0,0,0,0.25), 0 10px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '32px',
-          minWidth: '360px',
-          maxWidth: '400px',
-          position: 'relative',
-          overflow: 'hidden',
+          background: "linear-gradient(145deg, #ffffff, #f5f5f5)",
+          borderRadius: "28px",
+          padding: "56px 48px",
+          boxShadow: "0 30px 60px rgba(0,0,0,0.25), 0 10px 20px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.8)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "32px",
+          minWidth: "360px",
+          maxWidth: "400px",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
         {/* Background decoration */}
         <div
           style={{
-            position: 'absolute',
-            top: '-50%',
-            right: '-50%',
-            width: '200%',
-            height: '200%',
-            background:
-              'radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)',
-            pointerEvents: 'none',
+            position: "absolute",
+            top: "-50%",
+            right: "-50%",
+            width: "200%",
+            height: "200%",
+            background: "radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)",
+            pointerEvents: "none",
           }}
         />
 
         {/* Animated Map Icon Container */}
         <div
           style={{
-            position: 'relative',
-            width: '140px',
-            height: '140px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            position: "relative",
+            width: "140px",
+            height: "140px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
           {/* Outer rotating ring */}
           <div
             style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '100%',
-              height: '100%',
-              marginTop: '-50%',
-              marginLeft: '-50%',
-              border: '4px solid transparent',
-              borderTopColor: '#3B82F6',
-              borderRightColor: '#8B5CF6',
-              borderRadius: '50%',
-              animation: 'spin 3s linear infinite',
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "100%",
+              height: "100%",
+              marginTop: "-50%",
+              marginLeft: "-50%",
+              border: "4px solid transparent",
+              borderTopColor: "#3B82F6",
+              borderRightColor: "#8B5CF6",
+              borderRadius: "50%",
+              animation: "spin 3s linear infinite",
             }}
           />
 
           {/* Middle counter-rotating ring */}
           <div
             style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '85%',
-              height: '85%',
-              marginTop: '-42.5%',
-              marginLeft: '-42.5%',
-              border: '3px solid transparent',
-              borderBottomColor: '#10B981',
-              borderLeftColor: '#059669',
-              borderRadius: '50%',
-              animation: 'reverseSpin 2.5s linear infinite',
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "85%",
+              height: "85%",
+              marginTop: "-42.5%",
+              marginLeft: "-42.5%",
+              border: "3px solid transparent",
+              borderBottomColor: "#10B981",
+              borderLeftColor: "#059669",
+              borderRadius: "50%",
+              animation: "reverseSpin 2.5s linear infinite",
             }}
           />
 
           {/* Inner pulsing ring */}
           <div
             style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '70%',
-              height: '70%',
-              marginTop: '-35%',
-              marginLeft: '-35%',
-              border: '2px solid rgba(59, 130, 246, 0.3)',
-              borderRadius: '50%',
-              animation: 'pulse 2s ease-in-out infinite',
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "70%",
+              height: "70%",
+              marginTop: "-35%",
+              marginLeft: "-35%",
+              border: "2px solid rgba(59, 130, 246, 0.3)",
+              borderRadius: "50%",
+              animation: "pulse 2s ease-in-out infinite",
             }}
           />
 
           {/* Ping effect layers */}
           <div
             style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '50px',
-              height: '50px',
-              marginTop: '-25px',
-              marginLeft: '-25px',
-              borderRadius: '50%',
-              background: 'rgba(59, 130, 246, 0.3)',
-              animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "50px",
+              height: "50px",
+              marginTop: "-25px",
+              marginLeft: "-25px",
+              borderRadius: "50%",
+              background: "rgba(59, 130, 246, 0.3)",
+              animation: "ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
             }}
           />
           <div
             style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '50px',
-              height: '50px',
-              marginTop: '-25px',
-              marginLeft: '-25px',
-              borderRadius: '50%',
-              background: 'rgba(139, 92, 246, 0.3)',
-              animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite 1s',
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              width: "50px",
+              height: "50px",
+              marginTop: "-25px",
+              marginLeft: "-25px",
+              borderRadius: "50%",
+              background: "rgba(139, 92, 246, 0.3)",
+              animation: "ping 2s cubic-bezier(0, 0, 0.2, 1) infinite 1s",
             }}
           />
 
           {/* Center map icon */}
           <div
             style={{
-              position: 'relative',
+              position: "relative",
               zIndex: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
-              boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)',
-              animation: 'bounce 2s ease-in-out infinite',
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "56px",
+              height: "56px",
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #3B82F6, #8B5CF6)",
+              boxShadow: "0 8px 24px rgba(59, 130, 246, 0.4)",
+              animation: "bounce 2s ease-in-out infinite",
             }}
           >
             <FiMap
               style={{
-                width: '28px',
-                height: '28px',
-                color: '#FFFFFF',
-                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                width: "28px",
+                height: "28px",
+                color: "#FFFFFF",
+                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))",
               }}
             />
           </div>
@@ -379,19 +505,19 @@ export function LeftSidebar({
             <div
               key={i}
               style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: '10px',
-                height: '10px',
-                marginTop: '-5px',
-                marginLeft: '-5px',
-                borderRadius: '50%',
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: "10px",
+                height: "10px",
+                marginTop: "-5px",
+                marginLeft: "-5px",
+                borderRadius: "50%",
                 background:
                   i % 2 === 0
-                    ? 'linear-gradient(135deg, #3B82F6, #8B5CF6)'
-                    : 'linear-gradient(135deg, #10B981, #059669)',
-                boxShadow: `0 2px 8px ${i % 2 === 0 ? 'rgba(59, 130, 246, 0.4)' : 'rgba(16, 185, 129, 0.4)'}`,
+                    ? "linear-gradient(135deg, #3B82F6, #8B5CF6)"
+                    : "linear-gradient(135deg, #10B981, #059669)",
+                boxShadow: `0 2px 8px ${i % 2 === 0 ? "rgba(59, 130, 246, 0.4)" : "rgba(16, 185, 129, 0.4)"}`,
                 transform: `rotate(${i * 90}deg) translateY(-60px)`,
                 animation: `pulse 1.5s ease-in-out infinite ${i * 0.25}s`,
               }}
@@ -400,27 +526,27 @@ export function LeftSidebar({
         </div>
 
         {/* Loading text */}
-        <div style={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <div style={{ textAlign: "center", position: "relative", zIndex: 1 }}>
           <div
             style={{
-              fontSize: '24px',
-              fontWeight: '700',
-              marginBottom: '8px',
-              background: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              letterSpacing: '-0.5px',
+              fontSize: "24px",
+              fontWeight: "700",
+              marginBottom: "8px",
+              background: "linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              letterSpacing: "-0.5px",
             }}
           >
             Loading Map Layer
           </div>
           <div
             style={{
-              fontSize: '14px',
-              color: '#6B7280',
-              fontWeight: '500',
-              letterSpacing: '0.3px',
+              fontSize: "14px",
+              color: "#6B7280",
+              fontWeight: "500",
+              letterSpacing: "0.3px",
             }}
           >
             Preparing visualization...
@@ -430,10 +556,10 @@ export function LeftSidebar({
         {/* Progress dots */}
         <div
           style={{
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'center',
-            position: 'relative',
+            display: "flex",
+            gap: "12px",
+            alignItems: "center",
+            position: "relative",
             zIndex: 1,
           }}
         >
@@ -441,11 +567,11 @@ export function LeftSidebar({
             <div
               key={i}
               style={{
-                width: '12px',
-                height: '12px',
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg, #3B82F6, #8B5CF6)',
-                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+                width: "12px",
+                height: "12px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #3B82F6, #8B5CF6)",
+                boxShadow: "0 4px 12px rgba(59, 130, 246, 0.4)",
                 animation: `dotPulse 1.4s ease-in-out infinite ${i * 0.2}s`,
               }}
             />
@@ -457,9 +583,9 @@ export function LeftSidebar({
 
   if (isMinimized) {
     return (
-      <div style={{ position: 'fixed', left: '16px', top: '16px', zIndex: 1000 }}>
+      <div style={{ position: "fixed", left: "16px", top: "16px", zIndex: 1000 }}>
         <NeumorphicButton onClick={() => setIsMinimized(false)} title="Open Control Panel">
-          <FiMenu style={{ width: '20px', height: '20px' }} />
+          <FiMenu style={{ width: "20px", height: "20px" }} />
         </NeumorphicButton>
       </div>
     );
@@ -469,40 +595,51 @@ export function LeftSidebar({
     <>
       {/* Show loading overlay when layer is loading */}
       {isLayerLoading && <MapLoadingOverlay />}
-      
-      <div style={{
-        position: 'fixed',
-        left: '16px',
-        top: '16px',
-        zIndex: 1000,
-        width: isCollapsed ? '86px' : '288px',
-        transition: 'width 0.3s ease'
-      }}>
-        <NeumorphicContainer style={{
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          height: 'auto'
-        }}>
 
-        <div style={{
-          padding: '16px',
-          borderBottom: '1px solid rgba(0,0,0,0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          {!isCollapsed && (
-            <div>
-              <div style={{
-                fontSize: '16px',
-                fontWeight: '700',
-                color: '#1F2937',
-                marginBottom: '2px'
-              }}>
-                TIF 
-              </div>
-              <div style={{
+      <div
+        style={{
+          position: "fixed",
+          left: "16px",
+          top: "16px",
+          bottom: "16px",
+          zIndex: 1000,
+          width: isCollapsed ? "86px" : "288px",
+          transition: "width 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <NeumorphicContainer
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            height: "100%",
+            maxHeight: "calc(100vh - 32px)",
+          }}
+        >
+          <div
+            style={{
+              padding: "16px",
+              borderBottom: "1px solid rgba(0,0,0,0.05)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            {!isCollapsed && (
+              <div>
+                <div
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: "#1F2937",
+                    marginBottom: "2px",
+                  }}
+                >
+                  TIF
+                </div>
+                {/* <div style={{
                 fontSize: '11px',
                 color: '#6B7280',
                 fontWeight: '500',
@@ -510,57 +647,46 @@ export function LeftSidebar({
                 letterSpacing: '0.5px'
               }}>
                 Control Panel
+              </div> */}
               </div>
-            </div>
-          )}
+            )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <NeumorphicButton
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              title={isCollapsed ? 'Expand' : 'Collapse'}
-              size="small"
-            >
-              {isCollapsed ? (
-                <FiChevronRight style={{ width: '14px', height: '14px' }} />
-              ) : (
-                <FiChevronLeft style={{ width: '14px', height: '14px' }} />
-              )}
-            </NeumorphicButton>
-
-            {!isCollapsed && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <NeumorphicButton
-                onClick={() => setIsMinimized(true)}
-                title="Minimize Panel"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                title={isCollapsed ? "Expand" : "Collapse"}
                 size="small"
               >
-                <FiX style={{ width: '14px', height: '14px' }} />
+                {isCollapsed ? (
+                  <FiChevronRight style={{ width: "14px", height: "14px" }} />
+                ) : (
+                  <FiChevronLeft style={{ width: "14px", height: "14px" }} />
+                )}
               </NeumorphicButton>
-            )}
-          </div>
-        </div>
 
-        {/* Layer Controls Section */}
-        {!isCollapsed && (
-          <div style={{
-            padding: '12px',
-            borderBottom: '1px solid rgba(0,0,0,0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px'
-          }}>
-            <div style={{
-              fontSize: '11px',
-              fontWeight: '600',
-              color: '#6B7280',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              marginBottom: '4px'
-            }}>
-              Map Layers
+              {!isCollapsed && (
+                <NeumorphicButton onClick={() => setIsMinimized(true)} title="Minimize Panel" size="small">
+                  <FiX style={{ width: "14px", height: "14px" }} />
+                </NeumorphicButton>
+              )}
             </div>
+          </div>
 
-            {/* Kabupaten Toggle Button */}
-            {onToggleKabupaten && (
+          {/* Layer Controls Section */}
+          {!isCollapsed && (
+            <div
+              style={{
+                padding: "12px",
+                borderBottom: "1px solid rgba(0,0,0,0.05)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                overflowY: "auto",
+                maxHeight: "calc(100vh - 200px)",
+              }}
+            >
+              {/* Kabupaten Toggle Button */}
+              {/* {onToggleKabupaten && (
               <button
                 onClick={onToggleKabupaten}
                 disabled={!kabupatenLoaded}
@@ -601,180 +727,402 @@ export function LeftSidebar({
                 <FiLayers style={{ width: '14px', height: '14px' }} />
                 <span>{showKabupatenLayer ? 'Hide' : 'Show'} Kabupaten</span>
               </button>
-            )}
+            )} */}
 
-            {/* Layer Selection Dropdown */}
-            {onLayerChange && (
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px'
-              }}>
-                <label style={{
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: '#374151'
-                }}>
-                  Data Layer
-                </label>
-                <select
-                  value={selectedLayer}
-                  onChange={(e) => onLayerChange(e.target.value)}
+              {/* Layer Selection Dropdown */}
+              {onLayerChange && (
+                <div
                   style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(0,0,0,0.1)',
-                    background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.7))',
-                    fontSize: '13px',
-                    fontWeight: '500',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)',
-                    transition: 'all 0.2s ease',
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
                   }}
                 >
-                  <option value="none">Pilih Layer</option>
-                  <option value="capacity" disabled={capacityDataLength === 0}>
-                    Capacity Polygons
-                  </option>
-                  {/* <option value="sirkit" disabled={sirkitDataLength === 0}>
-                    Sirkit (Circuit + Boundary) {sirkitDataLength === 0 ? '(Loading...)' : `(${sirkitDataLength} circuits)`}
-                  </option>
-                  <option value="sigma" disabled={!airportsDataAvailable}>
-                    Sigma (Airports Graph) {!airportsDataAvailable ? '(Loading...)' : ''}
-                  </option> */} 
-                  <option value="nodeedges" disabled={!nodeEdgesDataAvailable}>
-                    Capacity Links {!nodeEdgesDataAvailable ? '(Loading...)' : ''}
-                  </option>
-                   <option value="multilayer" disabled={!multilayerMapDataAvailable}>
-                    Links Testing (GeoJSON) {!multilayerMapDataAvailable ? '(Loading...)' : ''}
-                  </option> 
-                </select>
-              </div>
-            )}
-          </div>
-        )}
+                  <label
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      color: "#374151",
+                    }}
+                  >
+                    Data Layer
+                  </label>
+                  <select
+                    value={selectedLayer}
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      onLayerChange(newValue);
+                      // Show filter panel only for ruas rekap or ruas rekap sto
+                      setShowRuasFilter(newValue === "ruasrekap" || newValue === "ruasrekapsto");
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(0,0,0,0.1)",
+                      background: "linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.7))",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      color: "#374151",
+                      cursor: "pointer",
+                      boxShadow: "inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)",
+                      transition: "all 0.2s ease",
+                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    }}
+                  >
+                    <option value="none">Pilih Layer</option>
+                    <option value="ruasrekap" disabled={!ruasRekapDataAvailable}>
+                      Ruas Rekap{" "}
+                      {!ruasRekapDataAvailable ? "(Loading...)" : `(${ruasRekapData?.nodes?.length || 0} nodes)`}
+                    </option>
+                    <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
+                      Ruas Rekap STO{" "}
+                      {!ruasRekapStoDataAvailable ? "(Loading...)" : `(${ruasRekapStoData?.nodes?.length || 0} nodes)`}
+                    </option>
+                    <option value="capacity" disabled={capacityDataLength === 0}>
+                      Capacity Polygons
+                    </option>
+                    <option value="nodeedges" disabled={!nodeEdgesDataAvailable}>
+                      Capacity Links {!nodeEdgesDataAvailable ? "(Loading...)" : ""}
+                    </option>
+                    <option value="multilayer" disabled={!multilayerMapDataAvailable}>
+                      Links Testing (GeoJSON) {!multilayerMapDataAvailable ? "(Loading...)" : ""}
+                    </option>
+                  </select>
+                </div>
+              )}
 
-        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeMenu === item.id;
-
-            return (
-              <div key={item.id} style={{ position: 'relative' }}>
-                <button
-                  onClick={() => onMenuClick(item.id)}
+              {/* Ruas Rekap Filter Panel - Filter by Layer */}
+              {showRuasFilter && (ruasRekapData || ruasRekapStoData) && onFilterRuasNodes && (
+                <div
                   style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    position: 'relative',
-                    background: isActive
-                      ? 'linear-gradient(135deg, #4F46E5, #3B82F6)'
-                      : 'linear-gradient(145deg, rgba(255,255,255,0.8), rgba(240,240,240,0.6))',
-                    color: isActive ? '#FFFFFF' : '#374151',
-                    boxShadow: isActive
-                      ? '0 8px 25px rgba(79,70,229,0.3), inset 0 1px 0 rgba(255,255,255,0.2)'
-                      : 'inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.8))';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.9)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = 'linear-gradient(145deg, rgba(255,255,255,0.8), rgba(240,240,240,0.6))';
-                      e.currentTarget.style.transform = 'translateY(0px)';
-                      e.currentTarget.style.boxShadow = 'inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)';
-                    }
+                    marginTop: "12px",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    background: "linear-gradient(145deg, rgba(59,130,246,0.05), rgba(59,130,246,0.02))",
+                    border: "1px solid rgba(59,130,246,0.1)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
                   }}
                 >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    background: isActive
-                      ? 'rgba(255,255,255,0.2)'
-                      : `linear-gradient(135deg, ${item.color}15, ${item.color}08)`,
-                    border: isActive ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${item.color}20`,
-                    flexShrink: 0
-                  }}>
-                    <Icon style={{
-                      width: '16px',
-                      height: '16px',
-                      color: isActive ? '#FFFFFF' : item.color
-                    }} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <label
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        color: "#3B82F6",
+                      }}
+                    >
+                      Filter by Layer ({getUniqueLayers.length} layers)
+                    </label>
+                    <button
+                      onClick={() => {
+                        const newSelectAll = !selectAllLayers;
+                        setSelectAllLayers(newSelectAll);
+                        if (newSelectAll) {
+                          // Select All: show all nodes by selecting all layers
+                          const allLayers = new Set(getUniqueLayers);
+                          setSelectedLayers(allLayers);
+                        } else {
+                          // Deselect All: hide all nodes by clearing selection
+                          setSelectedLayers(new Set());
+                        }
+                      }}
+                      style={{
+                        fontSize: "10px",
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: selectAllLayers
+                          ? "linear-gradient(135deg, #3B82F6, #2563EB)"
+                          : "linear-gradient(145deg, rgba(255,255,255,0.8), rgba(240,240,240,0.6))",
+                        color: selectAllLayers ? "#FFFFFF" : "#374151",
+                        cursor: "pointer",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {selectAllLayers ? "Deselect All" : "Select All"}
+                    </button>
                   </div>
+                  {/* Search Input */}
+                  <input
+                    type="text"
+                    placeholder="Search layers..."
+                    value={ruasSearchQuery}
+                    onChange={(e) => setRuasSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "8px 10px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(59,130,246,0.2)",
+                      background: "rgba(255,255,255,0.9)",
+                      fontSize: "12px",
+                      fontWeight: "400",
+                      color: "#374151",
+                      boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
+                      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    }}
+                  />
+                  {/* Scrollable Checkbox List */}
+                  <div
+                    style={{
+                      maxHeight: "200px",
+                      overflowY: "auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
+                      padding: "4px 0",
+                    }}
+                  >
+                    {getUniqueLayers
+                      .filter((layer) => layer.toLowerCase().includes(ruasSearchQuery.toLowerCase()))
+                      .map((layer) => {
+                        const isSelected = selectedLayers.has(layer);
+                        const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
+                        // Count nodes that have this layer
+                        let nodeCount = 0;
+                        if (currentData) {
+                          if (selectedLayer === "ruasrekapsto") {
+                            nodeCount = currentData.nodes.filter((node) => node.layer === layer).length;
+                          } else {
+                            nodeCount = currentData.nodes.filter((node) => {
+                              if (!node.topology || !Array.isArray(node.topology)) return false;
+                              return node.topology.some((topo) => topo.layer === layer);
+                            }).length;
+                          }
+                        }
 
-                  {!isCollapsed && (
-                    <>
-                      <div style={{ flex: 1, textAlign: 'left' }}>
-                        <div style={{ fontWeight: '600', marginBottom: '2px' }}>
-                          {item.label}
+                        return (
+                          <label
+                            key={layer}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              padding: "6px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                              fontWeight: "500",
+                              color: "#374151",
+                              background: isSelected ? "rgba(59,130,246,0.1)" : "transparent",
+                              transition: "all 0.2s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.background = "rgba(59,130,246,0.05)";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.background = "transparent";
+                              }
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const newSelected = new Set(selectedLayers);
+                                if (e.target.checked) {
+                                  newSelected.add(layer);
+                                } else {
+                                  newSelected.delete(layer);
+                                }
+                                setSelectedLayers(newSelected);
+
+                                // Update select all state
+                                if (newSelected.size === 0) {
+                                  setSelectAllLayers(false);
+                                } else if (newSelected.size === getUniqueLayers.length) {
+                                  setSelectAllLayers(true);
+                                } else {
+                                  setSelectAllLayers(false);
+                                }
+                              }}
+                              style={{
+                                width: "14px",
+                                height: "14px",
+                                accentColor: "#3B82F6",
+                              }}
+                            />
+                            <span
+                              style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                            >
+                              {layer}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "9px",
+                                color: "#6B7280",
+                                background: "rgba(107,114,128,0.1)",
+                                padding: "2px 4px",
+                                borderRadius: "4px",
+                              }}
+                            >
+                              {nodeCount} nodes
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                  {/* Filter Summary */}
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      color: "#6B7280",
+                      textAlign: "center",
+                      padding: "4px",
+                      background: "rgba(107,114,128,0.05)",
+                      borderRadius: "6px",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {selectedLayers.size === 0 ? "All layers visible" : `${selectedLayers.size} layer(s) selected`}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeMenu === item.id;
+
+              return (
+                <div key={item.id} style={{ position: "relative" }}>
+                  <button
+                    onClick={() => onMenuClick(item.id)}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "12px",
+                      borderRadius: "12px",
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      position: "relative",
+                      background: isActive
+                        ? "linear-gradient(135deg, #4F46E5, #3B82F6)"
+                        : "linear-gradient(145deg, rgba(255,255,255,0.8), rgba(240,240,240,0.6))",
+                      color: isActive ? "#FFFFFF" : "#374151",
+                      boxShadow: isActive
+                        ? "0 8px 25px rgba(79,70,229,0.3), inset 0 1px 0 rgba(255,255,255,0.2)"
+                        : "inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background =
+                          "linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.8))";
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                        e.currentTarget.style.boxShadow =
+                          "0 4px 12px rgba(0,0,0,0.1), inset 0 1px 2px rgba(255,255,255,0.9)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background =
+                          "linear-gradient(145deg, rgba(255,255,255,0.8), rgba(240,240,240,0.6))";
+                        e.currentTarget.style.transform = "translateY(0px)";
+                        e.currentTarget.style.boxShadow =
+                          "inset 0 1px 2px rgba(255,255,255,0.8), inset 0 -1px 2px rgba(0,0,0,0.1)";
+                      }
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "8px",
+                        background: isActive
+                          ? "rgba(255,255,255,0.2)"
+                          : `linear-gradient(135deg, ${item.color}15, ${item.color}08)`,
+                        border: isActive ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${item.color}20`,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Icon
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          color: isActive ? "#FFFFFF" : item.color,
+                        }}
+                      />
+                    </div>
+
+                    {!isCollapsed && (
+                      <>
+                        <div style={{ flex: 1, textAlign: "left" }}>
+                          <div style={{ fontWeight: "600", marginBottom: "2px" }}>{item.label}</div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: isActive ? "rgba(255,255,255,0.8)" : "#9CA3AF",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {item.description}
+                          </div>
                         </div>
-                        <div style={{
-                          fontSize: '11px',
-                          color: isActive ? 'rgba(255,255,255,0.8)' : '#9CA3AF',
-                          fontWeight: '500'
-                        }}>
-                          {item.description}
-                        </div>
-                      </div>
 
-                      {item.badge && (
-                        <div style={{
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          background: isActive
-                            ? 'rgba(255,255,255,0.2)'
-                            : `linear-gradient(135deg, ${item.color}20, ${item.color}10)`,
-                          color: isActive ? '#FFFFFF' : item.color,
-                          border: isActive ? '1px solid rgba(255,255,255,0.3)' : `1px solid ${item.color}30`
-                        }}>
-                          {item.badge}
-                        </div>
-                      )}
-                    </>
-                  )}
+                        {item.badge && (
+                          <div
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              fontSize: "10px",
+                              fontWeight: "600",
+                              background: isActive
+                                ? "rgba(255,255,255,0.2)"
+                                : `linear-gradient(135deg, ${item.color}20, ${item.color}10)`,
+                              color: isActive ? "#FFFFFF" : item.color,
+                              border: isActive ? "1px solid rgba(255,255,255,0.3)" : `1px solid ${item.color}30`,
+                            }}
+                          >
+                            {item.badge}
+                          </div>
+                        )}
+                      </>
+                    )}
 
-                  {isCollapsed && isActive && (
-                    <div style={{
-                      position: 'absolute',
-                      right: '4px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      width: '3px',
-                      height: '16px',
-                      background: '#FFFFFF',
-                      borderRadius: '2px',
-                      boxShadow: '0 0 8px rgba(255,255,255,0.5)'
-                    }} />
-                  )}
-                </button>
-              </div>
-            );
-          })}
-        </div>
+                    {isCollapsed && isActive && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: "4px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          width: "3px",
+                          height: "16px",
+                          background: "#FFFFFF",
+                          borderRadius: "2px",
+                          boxShadow: "0 0 8px rgba(255,255,255,0.5)",
+                        }}
+                      />
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
 
-        {!isCollapsed && (
+          {/* {!isCollapsed && (
           <div style={{
             marginTop: 'auto',
             padding: '16px',
@@ -816,9 +1164,9 @@ export function LeftSidebar({
               </div>
             </div>
           </div>
-        )}
-      </NeumorphicContainer>
-    </div>
+        )} */}
+        </NeumorphicContainer>
+      </div>
     </>
   );
 }

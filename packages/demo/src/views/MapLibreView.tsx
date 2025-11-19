@@ -1,10 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { latlngToGraph } from "@sigma/layer-maplibre";
 import type { FeatureCollection } from "geojson";
 import Graph from "graphology";
 import { SerializedGraph } from "graphology-types";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 // import { FiMapPin, FiUpload, FiX } from "react-icons/fi";
 // import { useNavigate } from "react-router-dom";
 import Sigma from "sigma";
@@ -77,7 +78,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [showKabupatenLayer, setShowKabupatenLayer] = useState(true);
+  const [showKabupatenLayer, setShowKabupatenLayer] = useState(false);
   const [kabupatenLoaded, setKabupatenLoaded] = useState(false);
   const [showCapacityLayer, setShowCapacityLayer] = useState(false);
   const [capacityData, setCapacityData] = useState<Record<string, string>[]>([]);
@@ -85,17 +86,23 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [airportsData, setAirportsData] = useState<SerializedGraph | null>(null);
   const [showSirkitLayer, setShowSirkitLayer] = useState(false);
   const [sirkitData, setSirkitData] = useState<Record<string, string>[]>([]);
-  const [selectedLayer, setSelectedLayer] = useState<string>("multilayer");
+  const [selectedLayer, setSelectedLayer] = useState<string>("ruasrekap");
   const [showMultilayerMap, setShowMultilayerMap] = useState(false);
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
   const [showNodeEdgesLayer, setShowNodeEdgesLayer] = useState(false);
   const [nodeEdgesData, setNodeEdgesData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
   const [isLayerLoading, setIsLayerLoading] = useState(false);
+  const [showRuasRekapLayer, setShowRuasRekapLayer] = useState(false);
+  const [ruasRekapData, setRuasRekapData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
+  const [filteredRuasNodes, setFilteredRuasNodes] = useState<string[]>([]);
+  const [showRuasRekapStoLayer, setShowRuasRekapStoLayer] = useState(false);
+  const [ruasRekapStoData, setRuasRekapStoData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
+  const [filteredRuasStoNodes, setFilteredRuasStoNodes] = useState<string[]>([]);
   // Reserved for future topology features (matching App.tsx structure)
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
   const [_showTopologyDrawer, _setShowTopologyDrawer] = useState(true);
-  
+
   // Link and Topology drawer states
   const [showLinkDetails, setShowLinkDetails] = useState(false);
   const [selectedLink, setSelectedLink] = useState<{
@@ -111,8 +118,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     type?: string;
   } | null>(null);
   const [showTopologyDrawer, setShowTopologyDrawer] = useState(false);
-  const [topologyConnection, setTopologyConnection] = useState<{ 
-    from: string; 
+  const [topologyConnection, setTopologyConnection] = useState<{
+    from: string;
     to: string;
     nodeData?: any;
     topology?: any[];
@@ -131,23 +138,27 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [toastMessage, setToastMessage] = useState("");
   const [toastType, setToastType] = useState<ToastType>("info");
   const [_searchQuery, setSearchQuery] = useState("");
-  const [searchSuggestions, setSearchSuggestions] = useState<Array<{
-    id: string;
-    label: string;
-    type: string;
-    latitude: number;
-    longitude: number;
-    metadata?: Record<string, any>;
-  }>>([]);
+  const [searchSuggestions, setSearchSuggestions] = useState<
+    Array<{
+      id: string;
+      label: string;
+      type: string;
+      latitude: number;
+      longitude: number;
+      metadata?: Record<string, any>;
+    }>
+  >([]);
   const [platformFilters, setPlatformFilters] = useState<string[]>([]);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<Array<{
-    id: string;
-    label: string;
-    type: string;
-    latitude: number;
-    longitude: number;
-    metadata?: Record<string, any>;
-  }>>([]);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<
+    Array<{
+      id: string;
+      label: string;
+      type: string;
+      latitude: number;
+      longitude: number;
+      metadata?: Record<string, any>;
+    }>
+  >([]);
 
   // const handleClose = () => {
   //   if (onClose) {
@@ -295,10 +306,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         setMultilayerMapData(geojson);
         // eslint-disable-next-line no-console
         console.log("Multilayer map data loaded:", geojson);
-        // Show multilayer map by default after loading
-        setTimeout(() => {
-          setShowMultilayerMap(true);
-        }, 1000);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error("Error loading multilayer map data:", error);
@@ -328,6 +335,80 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
     loadMultiNodeEdges();
   }, []);
+
+  // Load ruas rekap data from ruas_rekap.json
+  useEffect(() => {
+    const loadRuasRekapData = async () => {
+      try {
+        const response = await fetch("/ruas_rekap.json");
+        if (!response.ok) {
+          throw new Error("Failed to load ruas rekap data");
+        }
+        const data = await response.json();
+        setRuasRekapData(data);
+        // eslint-disable-next-line no-console
+        console.log("Ruas rekap data loaded:", data);
+
+        // Initialize filteredRuasNodes with all node IDs
+        if (data?.nodes && Array.isArray(data.nodes)) {
+          const allNodeIds = data.nodes.map((node: any) => node.id);
+          setFilteredRuasNodes(allNodeIds);
+        }
+
+        // Set default layer to ruas_rekap after loading
+        setTimeout(() => {
+          setSelectedLayer("ruasrekap");
+          setShowRuasRekapLayer(true);
+        }, 1000);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("Error loading ruas rekap data:", error);
+      }
+    };
+
+    loadRuasRekapData();
+  }, []);
+
+  // Load ruas rekap STO data from ruas_rekap_sto.json
+  useEffect(() => {
+    const loadRuasRekapStoData = async () => {
+      try {
+        const response = await fetch("/ruas_rekap_sto.json");
+        if (!response.ok) {
+          throw new Error("Failed to load ruas rekap STO data");
+        }
+        const data = await response.json();
+        setRuasRekapStoData(data);
+        // eslint-disable-next-line no-console
+        console.log("Ruas rekap STO data loaded:", data);
+
+        // Initialize filteredRuasStoNodes with all node IDs
+        if (data?.nodes && Array.isArray(data.nodes)) {
+          const allNodeIds = data.nodes.map((node: any) => node.id);
+          setFilteredRuasStoNodes(allNodeIds);
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("Error loading ruas rekap STO data:", error);
+      }
+    };
+
+    loadRuasRekapStoData();
+  }, []);
+
+  // Add ruas rekap layer when data is loaded
+  useEffect(() => {
+    if (mapLoaded && ruasRekapData && showRuasRekapLayer && map.current) {
+      addRuasRekapLayer();
+    }
+  }, [mapLoaded, ruasRekapData, showRuasRekapLayer, filteredRuasNodes]);
+
+  // Add ruas rekap STO layer when data is loaded
+  useEffect(() => {
+    if (mapLoaded && ruasRekapStoData && showRuasRekapStoLayer && map.current) {
+      addRuasRekapStoLayer();
+    }
+  }, [mapLoaded, ruasRekapStoData, showRuasRekapStoLayer, filteredRuasStoNodes]);
 
   // Initialize map
   useEffect(() => {
@@ -1102,7 +1183,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Platform:</strong> <span>${props?.platform || "N/A"}</span>
                   <strong>STO:</strong> <span>${props?.sto_l || props?.sto || "N/A"}</span>
                   <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
-                  <strong>Region:</strong> <span>${props?.reg || "N/A"}</span> 
+                  <strong>Region:</strong> <span>${props?.reg || "N/A"}</span>
                   <strong>Capacity:</strong> <span>${props?.cap || "N/A"}</span>
                   <strong>Port Used:</strong> <span style="color: #E74C3C;">${props?.port_used || "0"}</span>
                   <strong>Port Idle:</strong> <span style="color: #2ECC71;">${props?.port_idle || "0"}</span>
@@ -1467,8 +1548,903 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
   };
 
-  // Add multilayer map function
-  const addMultilayerMapLayer = () => {
+  // Add ruas rekap layer function
+  // Helper function to create curved line coordinates
+  const createCurvedLine = (
+    startLon: number,
+    startLat: number,
+    endLon: number,
+    endLat: number,
+    curvature = 0.3,
+  ): [number, number][] => {
+    const points: [number, number][] = [];
+    const steps = 20; // Number of points in the curve
+
+    // Calculate midpoint
+    const midLon = (startLon + endLon) / 2;
+    const midLat = (startLat + endLat) / 2;
+
+    // Calculate perpendicular offset for curve
+    const dx = endLon - startLon;
+    const dy = endLat - startLat;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // Perpendicular vector
+    const perpLon = -dy / distance;
+    const perpLat = dx / distance;
+
+    // Control point offset (creates the curve)
+    const offset = distance * curvature;
+    const controlLon = midLon + perpLon * offset;
+    const controlLat = midLat + perpLat * offset;
+
+    // Generate points along quadratic bezier curve
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const t1 = 1 - t;
+
+      // Quadratic bezier formula
+      const lon = t1 * t1 * startLon + 2 * t1 * t * controlLon + t * t * endLon;
+      const lat = t1 * t1 * startLat + 2 * t1 * t * controlLat + t * t * endLat;
+
+      points.push([lon, lat]);
+    }
+
+    return points;
+  };
+
+  const addRuasRekapLayer = () => {
+    if (!map.current || !ruasRekapData) {
+      return;
+    }
+
+    try {
+      // Remove existing layers if they exist
+      const layersToRemove = ["ruasrekap-points", "ruasrekap-lines", "ruasrekap-lines-glow"];
+      layersToRemove.forEach((layerId) => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+
+      if (map.current.getSource("ruasrekap")) {
+        map.current.removeSource("ruasrekap");
+      }
+
+      // Filter nodes based on filteredRuasNodes
+      // If filteredRuasNodes is empty array, show all nodes (default behavior)
+      // If filteredRuasNodes has items, show only those nodes
+      const nodesToShow =
+        filteredRuasNodes.length > 0
+          ? ruasRekapData.nodes.filter((node) => filteredRuasNodes.includes(node.id))
+          : ruasRekapData.nodes;
+
+      // Create a set of node IDs for quick lookup
+      const nodeIdsSet = new Set(nodesToShow.map((n) => n.id));
+
+      // Create GeoJSON features for edges (lines) from topology
+      const lineFeatures: any[] = [];
+      nodesToShow.forEach((node) => {
+        if (node.topology && Array.isArray(node.topology)) {
+          node.topology.forEach((topo: any) => {
+            // Only show edges where both source and target are in filtered nodes
+            if (nodeIdsSet.has(topo.source) && nodeIdsSet.has(topo.target)) {
+              // Create curved line coordinates
+              const curvedCoords = createCurvedLine(
+                topo.source_lon,
+                topo.source_lat,
+                topo.target_lon,
+                topo.target_lat,
+                0.2, // curvature factor
+              );
+
+              lineFeatures.push({
+                type: "Feature" as const,
+                properties: {
+                  id: topo.ruas || `${topo.source}_to_${topo.target}`,
+                  ruas: topo.ruas || "N/A",
+                  source: topo.source,
+                  target: topo.target,
+                  capacity: topo.capacity || 0,
+                  layer: topo.layer || "N/A",
+                  traffic_95_in: topo.traffic_95_in || 0,
+                  traffic_95_out: topo.traffic_95_out || 0,
+                  traffic_max_in: topo.traffic_max_in || 0,
+                  traffic_max_out: topo.traffic_max_out || 0,
+                  utilization: topo.utilization || 0,
+                },
+                geometry: {
+                  type: "LineString" as const,
+                  coordinates: curvedCoords,
+                },
+              });
+            }
+          });
+        }
+      });
+
+      // Create GeoJSON features for nodes (points)
+      const pointFeatures = nodesToShow.map((node) => ({
+        type: "Feature" as const,
+        properties: {
+          id: node.id,
+          label: node.label,
+          size: node.size || 3,
+          topologyCount: node.topology ? node.topology.length : 0,
+          topology: JSON.stringify(node.topology || []),
+        },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [node.x, node.y],
+        },
+      }));
+
+      // Combine all features
+      const allFeatures = [...lineFeatures, ...pointFeatures];
+
+      // Add source with all features
+      map.current.addSource("ruasrekap", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: allFeatures,
+        },
+      });
+
+      // Add line glow layer (bottom layer)
+      map.current.addLayer({
+        id: "ruasrekap-lines-glow",
+        type: "line",
+        source: "ruasrekap",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#3B82F6",
+          "line-width": 4,
+          "line-opacity": 0.15,
+          "line-blur": 2,
+        },
+      });
+
+      // Add line layer
+      map.current.addLayer({
+        id: "ruasrekap-lines",
+        type: "line",
+        source: "ruasrekap",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#2563EB",
+          "line-width": 0.5,
+          "line-opacity": 0.3,
+        },
+      });
+
+      // Add points layer (top layer)
+      map.current.addLayer({
+        id: "ruasrekap-points",
+        type: "circle",
+        source: "ruasrekap",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": ["*", ["get", "size"], 2],
+          "circle-color": "#3B82F6",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFFFFF",
+          "circle-opacity": 0.9,
+        },
+      });
+
+      // Add click handler for points
+      map.current.on("click", "ruasrekap-points", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Parse topology data
+          let topologyData: any[] | undefined;
+          try {
+            if (props?.topology) {
+              const parsed = typeof props.topology === "string" ? JSON.parse(props.topology) : props.topology;
+              topologyData = Array.isArray(parsed) ? parsed : undefined;
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
+          const topologyCount = props?.topologyCount || 0;
+          const topologyInfo =
+            topologyCount > 0
+              ? `<div style="margin-top: 8px; padding: 6px; background: rgba(59, 130, 246, 0.1); border-radius: 4px; font-size: 11px; color: #3B82F6;">
+                <strong>Topology:</strong> ${topologyCount} connections available
+              </div>`
+              : "";
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 8px; max-width: 280px;">
+                <strong style="font-size: 14px; color: #3B82F6;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+                  <strong>Node ID:</strong> <span>${props?.id || "N/A"}</span>
+                  <strong>Label:</strong> <span>${props?.label || "N/A"}</span>
+                  <strong>Size:</strong> <span>${props?.size || "N/A"}</span>
+                </div>
+                ${topologyInfo}
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+
+          // Show topology drawer with topology data
+          const hostname = props?.label || props?.id || "Node";
+          setTopologyConnection({
+            from: hostname,
+            to: "Network",
+            nodeData: props,
+            topology: topologyData || undefined,
+          });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Add click handler for lines
+      map.current.on("click", "ruasrekap-lines", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          const from = props?.source || "Node A";
+          const to = props?.target || "Node B";
+          const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 8px; max-width: 320px;">
+                <strong style="font-size: 14px; color: #2563EB;">🔗 ${props?.ruas || "Connection"}</strong><br/>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
+                  <strong>Source:</strong> <span>${from}</span>
+                  <strong>Target:</strong> <span>${to}</span>
+                  <strong>Capacity:</strong> <span style="color: #2563EB; font-weight: 600;">${capacityGbps} Gbps</span>
+                  <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
+                  <strong>Traffic In:</strong> <span>${props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                  <strong>Traffic Out:</strong> <span>${props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+
+          // Set link details for LinkDetailsPanel
+          setSelectedLink({
+            from,
+            to,
+            description: props?.ruas || `${from} → ${to}`,
+            bandwidth_mbps: props?.capacity ? props.capacity / 1000000 : 10000,
+            utilization: props?.utilization || 0,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: 1,
+            totalCapacity: `${capacityGbps}G`,
+            type: "L2_AGGREGATION",
+          });
+          setShowLinkDetails(true);
+
+          // Set topology connection
+          setTopologyConnection({ from, to });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Create a popup for hover
+      const hoverPopup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 15,
+        className: "hover-popup",
+      });
+
+      // Add hover handlers for points with popup
+      map.current.on("mouseenter", "ruasrekap-points", (e) => {
+        map.current!.getCanvas().style.cursor = "pointer";
+
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = (feature.geometry as any).coordinates.slice();
+
+          const topologyCount = props?.topologyCount || 0;
+
+          hoverPopup
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 11px; padding: 6px; max-width: 220px;">
+                <strong style="font-size: 13px; color: #3B82F6;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
+                <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
+                  <strong>ID:</strong> <span>${props?.id || "N/A"}</span>
+                  <strong>Connections:</strong> <span style="color: #3B82F6; font-weight: 600;">${topologyCount}</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
+                  Click for details
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on("mouseleave", "ruasrekap-points", () => {
+        map.current!.getCanvas().style.cursor = "";
+        hoverPopup.remove();
+      });
+
+      // Add hover handlers for lines (edges) with popup
+      map.current.on("mouseenter", "ruasrekap-lines", (e) => {
+        map.current!.getCanvas().style.cursor = "pointer";
+
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Calculate utilization percentage if capacity exists
+          const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+          const trafficInGbps = props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) : "0";
+          const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
+          const trafficMaxInGbps = props?.traffic_max_in ? (props.traffic_max_in / 1000000000).toFixed(2) : "0";
+          const trafficMaxOutGbps = props?.traffic_max_out ? (props.traffic_max_out / 1000000000).toFixed(2) : "0";
+
+          // Calculate actual utilization from traffic
+          let utilizationPercent = "0.00";
+          if (props?.capacity && props.capacity > 0) {
+            const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
+            utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
+          }
+
+          // Determine utilization color
+          let utilizationColor = "#2ECC71"; // Green
+          if (parseFloat(utilizationPercent) > 80) {
+            utilizationColor = "#E74C3C"; // Red
+          } else if (parseFloat(utilizationPercent) > 60) {
+            utilizationColor = "#F39C12"; // Orange
+          } else if (parseFloat(utilizationPercent) > 40) {
+            utilizationColor = "#F1C40F"; // Yellow
+          }
+
+          hoverPopup
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 11px; padding: 6px; max-width: 260px;">
+                <strong style="font-size: 13px; color: #8B5CF6;">🔗 ${props?.ruas || "Connection"}</strong><br/>
+                <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
+                  <strong>Source:</strong> <span style="color: #3B82F6;">${props?.source || "N/A"}</span>
+                  <strong>Target:</strong> <span style="color: #10B981;">${props?.target || "N/A"}</span>
+                  <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
+                  <strong>Capacity:</strong> <span style="color: #8B5CF6; font-weight: 600;">${capacityGbps} Gbps</span>
+                  <strong>Traffic In (95%):</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
+                  <strong>Traffic Out (95%):</strong> <span style="color: #10B981;">${trafficOutGbps} Gbps</span>
+                  <strong>Max Traffic In:</strong> <span style="color: #6366F1;">${trafficMaxInGbps} Gbps</span>
+                  <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
+                  <strong>Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
+                  Click for details
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on("mouseleave", "ruasrekap-lines", () => {
+        map.current!.getCanvas().style.cursor = "";
+        hoverPopup.remove();
+      });
+
+      // Add hover handlers for glow lines layer (to ensure hover works across entire line width)
+      map.current.on("mouseenter", "ruasrekap-lines-glow", (e) => {
+        map.current!.getCanvas().style.cursor = "pointer";
+
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Calculate utilization percentage if capacity exists
+          const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+          const trafficInGbps = props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) : "0";
+          const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
+          const trafficMaxInGbps = props?.traffic_max_in ? (props.traffic_max_in / 1000000000).toFixed(2) : "0";
+          const trafficMaxOutGbps = props?.traffic_max_out ? (props.traffic_max_out / 1000000000).toFixed(2) : "0";
+
+          // Calculate actual utilization from traffic
+          let utilizationPercent = "0.00";
+          if (props?.capacity && props.capacity > 0) {
+            const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
+            utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
+          }
+
+          // Determine utilization color
+          let utilizationColor = "#2ECC71"; // Green
+          if (parseFloat(utilizationPercent) > 80) {
+            utilizationColor = "#E74C3C"; // Red
+          } else if (parseFloat(utilizationPercent) > 60) {
+            utilizationColor = "#F39C12"; // Orange
+          } else if (parseFloat(utilizationPercent) > 40) {
+            utilizationColor = "#F1C40F"; // Yellow
+          }
+
+          hoverPopup
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 11px; padding: 6px; max-width: 260px;">
+                <strong style="font-size: 13px; color: #8B5CF6;">🔗 ${props?.ruas || "Connection"}</strong><br/>
+                <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
+                  <strong>Source:</strong> <span style="color: #3B82F6;">${props?.source || "N/A"}</span>
+                  <strong>Target:</strong> <span style="color: #10B981;">${props?.target || "N/A"}</span>
+                  <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
+                  <strong>Capacity:</strong> <span style="color: #8B5CF6; font-weight: 600;">${capacityGbps} Gbps</span>
+                  <strong>Traffic In (95%):</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
+                  <strong>Traffic Out (95%):</strong> <span style="color: #10B981;">${trafficOutGbps} Gbps</span>
+                  <strong>Max Traffic In:</strong> <span style="color: #6366F1;">${trafficMaxInGbps} Gbps</span>
+                  <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
+                  <strong>Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
+                  Click for details
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on("mouseleave", "ruasrekap-lines-glow", () => {
+        map.current!.getCanvas().style.cursor = "";
+        hoverPopup.remove();
+      });
+
+      // Calculate bounds to fit all nodes
+      if (nodesToShow.length > 0) {
+        const lngs = nodesToShow.map((n) => n.x);
+        const lats = nodesToShow.map((n) => n.y);
+        const bounds = {
+          minLng: Math.min(...lngs),
+          maxLng: Math.max(...lngs),
+          minLat: Math.min(...lats),
+          maxLat: Math.max(...lats),
+        };
+
+        // Fit map to show all nodes
+        map.current.fitBounds(
+          [
+            [bounds.minLng, bounds.minLat],
+            [bounds.maxLng, bounds.maxLat],
+          ],
+          {
+            padding: 50,
+            duration: 1000,
+          },
+        );
+      }
+
+      // eslint-disable-next-line no-console
+      console.log("Ruas rekap layer added successfully");
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Error adding ruas rekap layer:", error);
+      alert(`Error adding ruas rekap layer: ${error}`);
+    }
+  };
+
+  // Toggle ruas rekap layer visibility
+  const toggleRuasRekapLayer = () => {
+    if (!map.current) return;
+
+    const newVisibility = !showRuasRekapLayer;
+    setShowRuasRekapLayer(newVisibility);
+
+    if (newVisibility && !map.current.getLayer("ruasrekap-points")) {
+      // Add layer if it doesn't exist
+      addRuasRekapLayer();
+    } else {
+      // Toggle visibility
+      const visibility = newVisibility ? "visible" : "none";
+      ["ruasrekap-lines", "ruasrekap-lines-glow", "ruasrekap-points"].forEach((layerId) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current.setLayoutProperty(layerId, "visibility", visibility);
+        }
+      });
+    }
+  };
+
+  // Toggle ruas rekap STO layer visibility
+  const toggleRuasRekapStoLayer = () => {
+    if (!map.current) return;
+
+    const newVisibility = !showRuasRekapStoLayer;
+    setShowRuasRekapStoLayer(newVisibility);
+
+    if (newVisibility && !map.current?.getLayer("ruas-rekap-sto-points")) {
+      // Add layer if it doesn't exist
+      addRuasRekapStoLayer();
+    } else {
+      // Toggle visibility
+      const visibility = newVisibility ? "visible" : "none";
+      const layers = ["ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow", "ruas-rekap-sto-points"];
+      layers.forEach((layerId) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current?.setLayoutProperty(layerId, "visibility", visibility);
+        }
+      });
+    }
+  };
+
+  const addRuasRekapStoLayer = () => {
+    if (!map.current || !ruasRekapStoData) return;
+
+    // Remove existing layers first (order matters!)
+    const layersToRemove = ["ruas-rekap-sto-points", "ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow"];
+    layersToRemove.forEach((layerId) => {
+      if (map.current?.getLayer(layerId)) {
+        map.current?.removeLayer(layerId);
+      }
+    });
+
+    // Then remove source after all layers are removed
+    if (map.current?.getSource("ruas-rekap-sto-lines-glow")) {
+      map.current?.removeSource("ruas-rekap-sto-lines-glow");
+    }
+
+    // Filter nodes based on selected layers
+    const nodesToShow =
+      filteredRuasStoNodes.length > 0
+        ? ruasRekapStoData.nodes.filter((node: any) => filteredRuasStoNodes.includes(node.id))
+        : ruasRekapStoData.nodes;
+
+    const nodeIdsSet = new Set(nodesToShow.map((node: any) => node.id));
+
+    // Create line features from edges with curved lines
+    const lineFeatures = ruasRekapStoData.edges
+      .filter((edge: any) => nodeIdsSet.has(edge.source) && nodeIdsSet.has(edge.target))
+      .map((edge: any) => {
+        const curvedCoords = createCurvedLine(edge.source_lon, edge.source_lat, edge.target_lon, edge.target_lat, 0.15);
+
+        return {
+          type: "Feature" as const,
+          properties: {
+            id: edge.id,
+            ruas: edge.ruas_list,
+            source: edge.source,
+            target: edge.target,
+            capacity: edge.total_capacity,
+            layer: edge.layer_list,
+            traffic_95_in: edge.total_traffic_95_in,
+            traffic_95_out: edge.total_traffic_95_out,
+            traffic_max_in: edge.total_traffic_max_in,
+            traffic_max_out: edge.total_traffic_max_out,
+            utilization: edge.avg_utilization,
+          },
+          geometry: {
+            type: "LineString" as const,
+            coordinates: curvedCoords,
+          },
+        };
+      });
+
+    // Create point features from nodes
+    nodesToShow.map((node: any) => ({
+      type: "Feature" as const,
+      properties: {
+        id: node.id,
+        label: node.label,
+        size: node.size,
+        topologyCount: 0,
+        topology: JSON.stringify([]),
+      },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [node.x, node.y],
+      },
+    }));
+
+    // Add line glow layer
+    map.current?.addSource("ruas-rekap-sto-lines-glow", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: lineFeatures,
+      },
+    });
+
+    map.current?.addLayer({
+      id: "ruas-rekap-sto-lines-glow",
+      type: "line",
+      source: "ruas-rekap-sto-lines-glow",
+      filter: ["==", "$type", "LineString"],
+      paint: {
+        "line-color": "#4CAF50",
+        "line-width": 8,
+        "line-opacity": 0.3,
+        "line-blur": 4,
+      },
+    });
+
+    // Add main line layer
+    map.current?.addLayer({
+      id: "ruas-rekap-sto-lines",
+      type: "line",
+      source: "ruas-rekap-sto-lines-glow",
+      filter: ["==", "$type", "LineString"],
+      paint: {
+        "line-color": "#4CAF50",
+        "line-width": 3,
+        "line-opacity": 0.8,
+      },
+    });
+
+    // Add point layer
+    map.current?.addLayer({
+      id: "ruas-rekap-sto-points",
+      type: "circle",
+      source: "ruas-rekap-sto-lines-glow",
+      filter: ["==", "$type", "Point"],
+      paint: {
+        "circle-radius": 8,
+        "circle-color": "#4CAF50",
+        "circle-stroke-width": 2,
+        "circle-stroke-color": "#ffffff",
+        "circle-opacity": 0.9,
+      },
+    });
+
+    // Add click handler for points
+    map.current?.on("click", "ruas-rekap-sto-points", (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const props = feature.properties;
+      const coordinates = (feature.geometry as any).coordinates.slice();
+
+      let topologyData: any[] = [];
+      try {
+        const parsed = JSON.parse(props.topology || "[]");
+        topologyData = Array.isArray(parsed) ? parsed : [];
+      } catch (_error) {
+        topologyData = [];
+      }
+
+      const topologyCount = topologyData.length;
+      const topologyInfo = topologyCount > 0 ? `<br><strong>Topology Links:</strong> ${topologyCount}` : "";
+
+      new maplibregl.Popup()
+        .setLngLat(coordinates)
+        .setHTML(
+          `
+          <div style="font-family: 'Inter', sans-serif; padding: 8px;">
+            <div style="font-size: 14px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px;">
+              ${props.label}
+            </div>
+            <div style="font-size: 12px; color: #666; margin-bottom: 2px;">
+              <strong>ID:</strong> ${props.id}
+            </div>
+            ${topologyInfo}
+          </div>
+        `,
+        )
+        .addTo(map.current!);
+
+      const from = props.id;
+      const to = props.id;
+      const nodeData = props;
+      const topology = topologyData;
+
+      setTopologyConnection({ from, to, nodeData, topology });
+      setShowTopologyDrawer(true);
+    });
+
+    // Add click handler for lines
+    map.current?.on("click", "ruas-rekap-sto-lines", (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const props = feature.properties;
+
+      const from = props.source || "Unknown";
+      const to = props.target || "Unknown";
+      const capacityGbps = props.capacity ? (props.capacity / 1_000_000_000).toFixed(2) : "N/A";
+
+      new maplibregl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(
+          `
+          <div style="font-family: 'Inter', sans-serif; padding: 12px; min-width: 280px;">
+            <div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; border-bottom: 2px solid #4CAF50; padding-bottom: 6px;">
+              🔗 Link Connection
+            </div>
+            <div style="display: grid; gap: 6px; font-size: 13px;">
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #666; font-weight: 500;">From:</span>
+                <span style="color: #1a1a1a; font-weight: 600;">${from}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #666; font-weight: 500;">To:</span>
+                <span style="color: #1a1a1a; font-weight: 600;">${to}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #666; font-weight: 500;">Capacity:</span>
+                <span style="color: #4CAF50; font-weight: 600;">${capacityGbps} Gbps</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: #666; font-weight: 500;">Layer:</span>
+                <span style="color: #1a1a1a;">${props.layer || "N/A"}</span>
+              </div>
+            </div>
+          </div>
+        `,
+        )
+        .addTo(map.current!);
+
+      const description = props.ruas || "";
+      const bandwidth_mbps = props.capacity ? props.capacity / 1_000_000 : undefined;
+      const utilization = props.utilization;
+      const latency = undefined;
+      const packetLoss = undefined;
+      const linkCount = 1;
+      const totalCapacity = capacityGbps + " Gbps";
+      const type = props.layer;
+
+      setSelectedLink({
+        from,
+        to,
+        description,
+        bandwidth_mbps,
+        utilization,
+        latency,
+        packetLoss,
+        linkCount,
+        totalCapacity,
+        type,
+      });
+      setShowLinkDetails(true);
+    });
+
+    // Add hover popup for lines
+    const hoverPopup = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: 10,
+      className: "hover-popup",
+    });
+
+    // Hover handler for points
+    map.current?.on("mouseenter", "ruas-rekap-sto-points", (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const props = feature.properties;
+      const coordinates = (feature.geometry as any).coordinates.slice();
+
+      const topologyCount = 0;
+
+      map.current!.getCanvas().style.cursor = "pointer";
+
+      hoverPopup
+        .setLngLat(coordinates)
+        .setHTML(
+          `
+          <div style="font-family: 'Inter', sans-serif; padding: 8px; background: rgba(0, 0, 0, 0.9); border-radius: 6px; color: white;">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 2px;">
+              ${props.label}
+            </div>
+            <div style="font-size: 10px; opacity: 0.8;">
+              ID: ${props.id}
+            </div>
+            ${topologyCount > 0 ? `<div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">Links: ${topologyCount}</div>` : ""}
+          </div>
+        `,
+        )
+        .addTo(map.current!);
+    });
+
+    map.current?.on("mouseleave", "ruas-rekap-sto-points", () => {
+      map.current!.getCanvas().style.cursor = "";
+      hoverPopup.remove();
+    });
+
+    // Hover handler for lines
+    map.current?.on("mouseenter", "ruas-rekap-sto-lines", (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const props = feature.properties;
+      const coordinates = e.lngLat;
+
+      const capacityGbps = props.capacity ? (props.capacity / 1_000_000_000).toFixed(2) : "N/A";
+      const trafficInGbps = props.traffic_95_in ? (props.traffic_95_in / 1_000_000_000).toFixed(2) : "N/A";
+      const trafficOutGbps = props.traffic_95_out ? (props.traffic_95_out / 1_000_000_000).toFixed(2) : "N/A";
+
+      let utilizationPercent = props.utilization ? (props.utilization * 100).toFixed(2) : "0.00";
+      if (props.capacity > 0 && props.traffic_95_out > 0) {
+        const maxTraffic = Math.max(props.traffic_95_in || 0, props.traffic_95_out || 0);
+        utilizationPercent = ((maxTraffic / props.capacity) * 100).toFixed(2);
+      }
+
+      let utilizationColor = "#4CAF50";
+      if (parseFloat(utilizationPercent) > 80) {
+        utilizationColor = "#f44336";
+      } else if (parseFloat(utilizationPercent) > 60) {
+        utilizationColor = "#ff9800";
+      }
+
+      map.current!.getCanvas().style.cursor = "pointer";
+
+      hoverPopup
+        .setLngLat(coordinates)
+        .setHTML(
+          `
+          <div style="font-family: 'Inter', sans-serif; padding: 10px; background: rgba(0, 0, 0, 0.95); border-radius: 8px; color: white; min-width: 200px;">
+            <div style="font-size: 11px; font-weight: 600; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2);">
+              ${props.source} → ${props.target}
+            </div>
+            <div style="display: grid; gap: 3px; font-size: 10px;">
+              <div style="display: flex; justify-content: space-between;">
+                <span style="opacity: 0.8;">Capacity:</span>
+                <span style="font-weight: 600;">${capacityGbps} Gbps</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="opacity: 0.8;">Traffic In:</span>
+                <span>${trafficInGbps} Gbps</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="opacity: 0.8;">Traffic Out:</span>
+                <span>${trafficOutGbps} Gbps</span>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="opacity: 0.8;">Utilization:</span>
+                <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
+              </div>
+            </div>
+          </div>
+        `,
+        )
+        .addTo(map.current!);
+    });
+
+    map.current?.on("mouseleave", "ruas-rekap-sto-lines", () => {
+      map.current!.getCanvas().style.cursor = "";
+      hoverPopup.remove();
+    });
+
+    // Fit bounds to show all data
+    if (nodesToShow.length > 0) {
+      const lngs = nodesToShow.map((node: any) => node.x);
+      const lats = nodesToShow.map((node: any) => node.y);
+      const bounds: [number, number, number, number] = [
+        Math.min(...lngs),
+        Math.min(...lats),
+        Math.max(...lngs),
+        Math.max(...lats),
+      ];
+
+      map.current?.fitBounds(bounds, {
+        padding: 100,
+        duration: 1000,
+      });
+    }
+  };
+
+  const addMultilayerMapLayer = async () => {
     if (!map.current || !multilayerMapData) {
       return;
     }
@@ -1642,8 +2618,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       //     let topologyData: any[] | undefined;
       //     try {
       //       if (props?.topology) {
-      //         const parsed = typeof props.topology === 'string' 
-      //           ? JSON.parse(props.topology) 
+      //         const parsed = typeof props.topology === 'string'
+      //           ? JSON.parse(props.topology)
       //           : props.topology;
       //         topologyData = Array.isArray(parsed) ? parsed : undefined;
       //       }
@@ -1656,7 +2632,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       //     const topologyInfo = topologyCount > 0
       //       ? `<div style="margin-top: 8px; padding: 6px; background: rgba(147, 51, 234, 0.1); border-radius: 4px; font-size: 11px; color: #9333ea;">
       //           <strong>Topology:</strong> ${topologyCount} connections available
-      //         </div>` 
+      //         </div>`
       //       : '';
 
       //     new maplibregl.Popup()
@@ -1686,8 +2662,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       //     // Show topology drawer for the node with topology data
       //     const hostname = props?.hostname || props?.label || "Node";
-      //     setTopologyConnection({ 
-      //       from: hostname, 
+      //     setTopologyConnection({
+      //       from: hostname,
       //       to: "Network",
       //       nodeData: props,
       //       topology: topologyData || undefined
@@ -1720,32 +2696,37 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       // Add click handler for lines - Show LinkDetailsPanel and TopologyDrawer
       map.current.on("click", "multilayer-lines", (e) => {
         if (e.features && e.features.length > 0) {
-          console.log("CLICK TEST")
-          console.log("CLICK TEST")
           const feature = e.features[0];
           const props = feature.properties;
-            const coordinates = e.lngLat; 
+          const coordinates = e.lngLat;
 
           // Extract from/to from the name or use hostname
           const nameParts = (props?.name || "").split("-");
           const from = nameParts[0] || props?.hostname || "Node A";
           const to = nameParts[1] || "Node B";
 
-           const statusColor = props?.status === 'good' ? '#2ECC71' :
-            props?.status === 'medium' ? '#F39C12' :
-              props?.status === 'low' ? '#E74C3C' : '#2980B9';
+          const statusColor =
+            props?.status === "good"
+              ? "#2ECC71"
+              : props?.status === "medium"
+                ? "#F39C12"
+                : props?.status === "low"
+                  ? "#E74C3C"
+                  : "#2980B9";
 
           new maplibregl.Popup()
             .setLngLat(coordinates)
-            .setHTML(`
+            .setHTML(
+              `
               <div style="font-size: 12px; padding: 8px;">
-                <strong style="font-size: 14px; color: ${statusColor};">🔗 ${props?.name || 'Connection Line'}</strong><br/>
+                <strong style="font-size: 14px; color: ${statusColor};">🔗 ${props?.name || "Connection Line"}</strong><br/>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 600; text-transform: uppercase;">${props?.status || 'N/A'}</span><br/>
+                <strong>Status:</strong> <span style="color: ${statusColor}; font-weight: 600; text-transform: uppercase;">${props?.status || "N/A"}</span><br/>
               </div>
-            `)
+            `,
+            )
             .addTo(map.current!);
-          
+
           // Set link details for LinkDetailsPanel
           setSelectedLink({
             from,
@@ -1766,10 +2747,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           setShowTopologyDrawer(true);
         }
       });
-
-      
-
-      
 
       map.current.on("mouseenter", "multilayer-points", () => {
         map.current!.getCanvas().style.cursor = "pointer";
@@ -1861,7 +2838,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       const createCurvedLine = (
         start: [number, number],
         end: [number, number],
-        curvature: number = 0.3
+        curvature: number = 0.3,
       ): [number, number][] => {
         const points: [number, number][] = [];
         const steps = 20; // Number of points in the curve
@@ -1874,7 +2851,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         // Perpendicular vector
         const perpX = -dy / distance;
         const perpY = dx / distance;
@@ -1888,11 +2865,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         for (let i = 0; i <= steps; i++) {
           const t = i / steps;
           const invT = 1 - t;
-          
+
           // Quadratic bezier formula
           const x = invT * invT * start[0] + 2 * invT * t * controlX + t * t * end[0];
           const y = invT * invT * start[1] + 2 * invT * t * controlY + t * t * end[1];
-          
+
           points.push([x, y]);
         }
 
@@ -1913,7 +2890,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const curvedCoordinates = createCurvedLine(
             [sourceNode.x, sourceNode.y],
             [targetNode.x, targetNode.y],
-            0.2 // Curvature factor (adjust for more/less curve)
+            0.2, // Curvature factor (adjust for more/less curve)
           );
 
           return {
@@ -1967,16 +2944,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       // Combine all features
       const allFeatures = [...lineFeatures, ...pointFeatures];
-
-      // Debug: Log features to verify data
-      console.log('=== Node Edges Layer Created ===');
-      console.log('Total edges:', lineFeatures.length);
-      console.log('Total nodes:', pointFeatures.length);
-      console.log('Sample edge feature:', lineFeatures[0]);
-      console.log('Sample edge properties:', lineFeatures[0]?.properties);
-      console.log('Sample node feature:', pointFeatures[0]);
-      console.log('Sample node properties:', pointFeatures[0]?.properties);
-      console.log('================================');
 
       // Add source with all features
       map.current.addSource("node-edges", {
@@ -2036,33 +3003,25 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const props = feature.properties;
           const coordinates = e.lngLat;
 
-          // Debug: Log all properties to console
-          console.log('=== Node Point Clicked ===');
-          console.log('Full feature:', feature);
-          console.log('Properties:', props);
-          console.log('All property keys:', Object.keys(props || {}));
-          console.log('=========================');
-
           // Parse topology data if it exists
           let topologyData: any[] | undefined;
           try {
             if (props?.topology) {
-              const parsed = typeof props.topology === 'string' 
-                ? JSON.parse(props.topology) 
-                : props.topology;
+              const parsed = typeof props.topology === "string" ? JSON.parse(props.topology) : props.topology;
               topologyData = Array.isArray(parsed) ? parsed : undefined;
             }
-          } catch (error) {
-            console.error('Error parsing topology data:', error);
+          } catch (_error) {
+            /* empty */
           }
 
           // Show popup with all node data except topology
           const topologyCount = topologyData ? topologyData.length : 0;
-          const topologyInfo = topologyCount > 0
-            ? `<div style="margin-top: 8px; padding: 6px; background: rgba(255, 107, 53, 0.1); border-radius: 4px; font-size: 11px; color: #FF6B35;">
+          const topologyInfo =
+            topologyCount > 0
+              ? `<div style="margin-top: 8px; padding: 6px; background: rgba(255, 107, 53, 0.1); border-radius: 4px; font-size: 11px; color: #FF6B35;">
                 <strong>Topology:</strong> ${topologyCount} connections available
-              </div>` 
-            : '';
+              </div>`
+              : "";
 
           new maplibregl.Popup()
             .setLngLat(coordinates)
@@ -2090,11 +3049,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           // Show topology drawer for the node with topology data
           const hostname = props?.hostname || props?.label || props?.id || "Node";
-          setTopologyConnection({ 
-            from: hostname, 
+          setTopologyConnection({
+            from: hostname,
             to: "Network",
             nodeData: props,
-            topology: topologyData || undefined
+            topology: topologyData || undefined,
           });
           setShowTopologyDrawer(true);
         }
@@ -2116,13 +3075,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           const from = props?.source || "Node A";
           const to = props?.target || "Node B";
-          
+
           // Calculate capacities in Gbps
-          const sourceCapacityGbps = props?.source_capacity_total 
-            ? (props.source_capacity_total / 1000).toFixed(2) 
+          const sourceCapacityGbps = props?.source_capacity_total
+            ? (props.source_capacity_total / 1000).toFixed(2)
             : "N/A";
-          const targetCapacityGbps = props?.target_capacity_total 
-            ? (props.target_capacity_total / 1000).toFixed(2) 
+          const targetCapacityGbps = props?.target_capacity_total
+            ? (props.target_capacity_total / 1000).toFixed(2)
             : "N/A";
 
           // Show popup with all edge details
@@ -2140,7 +3099,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                    <strong>Source Capacity:</strong> <span style="color: #2ECC71; font-weight: 600;">${sourceCapacityGbps} Gbps</span>
                   <strong>Target Capacity:</strong> <span style="color: #3498DB; font-weight: 600;">${targetCapacityGbps} Gbps</span>
                   <strong>Size:</strong> <span>${props?.size || "N/A"}</span>
-                </div> 
+                </div>
               </div>
             `,
             )
@@ -2150,7 +3109,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const sourceCapacityMbps = props?.source_capacity_total || 10000;
           const targetCapacityMbps = props?.target_capacity_total || 10000;
           const avgCapacityMbps = (sourceCapacityMbps + targetCapacityMbps) / 2;
-          
+
           setSelectedLink({
             from,
             to,
@@ -2166,8 +3125,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           setShowLinkDetails(true);
 
           // Set topology connection for TopologyDrawer
-          // setTopologyConnection({ 
-          //   from, 
+          // setTopologyConnection({
+          //   from,
           //   to,
           //   nodeData: props
           // });
@@ -2323,7 +3282,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       });
 
       // Access WebGL context and set transparent clear color
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const gl = (renderer as any).getWebGLContext();
       if (gl) {
         gl.clearColor(0, 0, 0, 0); // RGBA: transparent
@@ -2435,6 +3394,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
   }, [mapLoaded, nodeEdgesData, showNodeEdgesLayer]);
 
+  // Load default layer when map and data are ready
+  useEffect(() => {
+    const loadDefaultLayer = async () => {
+      if (mapLoaded && nodeEdgesData && selectedLayer === "nodeedges" && !showNodeEdgesLayer) {
+        // Small delay to ensure map is fully initialized
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setShowNodeEdgesLayer(true);
+      }
+    };
+
+    loadDefaultLayer();
+  }, [mapLoaded, nodeEdgesData]);
+
   // Update map when nodes change
   useEffect(() => {
     if (mapLoaded && nodes.length > 0) {
@@ -2485,7 +3457,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           suggestions.push({
             id: `capacity-${index}`,
             label: item.hostname,
-            type: 'capacity',
+            type: "capacity",
             latitude: parseFloat(item.latitude),
             longitude: parseFloat(item.longitude),
             metadata: {
@@ -2493,8 +3465,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               platform: item.platform,
               witel: item.witel,
               sto: item.sto_l || item.sto,
-              reg: item.reg
-            }
+              reg: item.reg,
+            },
           });
         }
       });
@@ -2507,15 +3479,15 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           suggestions.push({
             id: `sirkit-${index}`,
             label: item.node,
-            type: 'sirkit',
+            type: "sirkit",
             latitude: parseFloat(item.latitude),
             longitude: parseFloat(item.longitude),
             metadata: {
               witel: item.witel,
               sto: item.sto_l || item.sto,
               reg: item.reg,
-              platform: item.platform
-            }
+              platform: item.platform,
+            },
           });
         }
       });
@@ -2524,12 +3496,12 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     // Add multilayer map suggestions
     if (showMultilayerMap && multilayerMapData) {
       multilayerMapData.features.forEach((feature, index) => {
-        if (feature.geometry.type === 'Point' && feature.properties) {
+        if (feature.geometry.type === "Point" && feature.properties) {
           const coords = feature.geometry.coordinates as [number, number];
           suggestions.push({
             id: `multilayer-${index}`,
             label: feature.properties.hostname || feature.properties.label || `Node ${index}`,
-            type: 'multilayer',
+            type: "multilayer",
             latitude: coords[1],
             longitude: coords[0],
             metadata: {
@@ -2537,8 +3509,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               platform: feature.properties.platform,
               witel: feature.properties.witel,
               sto: feature.properties.sto_l,
-              reg: feature.properties.reg
-            }
+              reg: feature.properties.reg,
+            },
           });
         }
       });
@@ -2550,7 +3522,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         suggestions.push({
           id: `nodeedges-${node.id}`,
           label: node.hostname || node.label || node.id,
-          type: 'nodeedges',
+          type: "nodeedges",
           latitude: node.y,
           longitude: node.x,
           metadata: {
@@ -2558,8 +3530,28 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             platform: node.platform,
             witel: node.witel,
             sto: node.sto_l,
-            reg: node.reg
-          }
+            reg: node.reg,
+          },
+        });
+      });
+    }
+
+    // Add ruas rekap STO suggestions
+    if (showRuasRekapStoLayer && ruasRekapStoData) {
+      ruasRekapStoData.nodes.forEach((node) => {
+        suggestions.push({
+          id: `ruasrekapsto-${node.id}`,
+          label: node.label || node.id,
+          type: "ruasrekapsto",
+          latitude: node.y,
+          longitude: node.x,
+          metadata: {
+            platform: node.platform,
+            witel: node.witel,
+            reg: node.reg,
+            types: node.types,
+            layer: node.layer,
+          },
         });
       });
     }
@@ -2568,13 +3560,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
     // Extract unique platforms from suggestions
     const platforms = new Set<string>();
-    suggestions.forEach(suggestion => {
-      if (suggestion.metadata?.platform && suggestion.metadata.platform !== 'N/A') {
+    suggestions.forEach((suggestion) => {
+      if (suggestion.metadata?.platform && suggestion.metadata.platform !== "N/A") {
         platforms.add(suggestion.metadata.platform);
       }
     });
     setPlatformFilters(Array.from(platforms).sort());
-  }, [showCapacityLayer, capacityData, showSirkitLayer, sirkitData, showMultilayerMap, multilayerMapData, showNodeEdgesLayer, nodeEdgesData]);
+  }, [
+    showCapacityLayer,
+    capacityData,
+    showSirkitLayer,
+    sirkitData,
+    showMultilayerMap,
+    multilayerMapData,
+    showNodeEdgesLayer,
+    nodeEdgesData,
+    showRuasRekapStoLayer,
+    ruasRekapStoData,
+  ]);
 
   // Clear filter handler - removes highligd resets filtered suggestions
   const handleClearFilter = () => {
@@ -2583,27 +3586,27 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
     // Remove highlight layer from map
     if (map.current) {
-      if (map.current.getLayer('filtered-nodes-highlight')) {
-        map.current.removeLayer('filtered-nodes-highlight');
+      if (map.current.getLayer("filtered-nodes-highlight")) {
+        map.current.removeLayer("filtered-nodes-highlight");
       }
-      if (map.current.getSource('filtered-nodes')) {
-        map.current.removeSource('filtered-nodes');
+      if (map.current.getSource("filtered-nodes")) {
+        map.current.removeSource("filtered-nodes");
       }
     }
 
     // Show toast notification
-    setToastMessage('Filter cleared');
-    setToastType('info');
+    setToastMessage("Filter cleared");
+    setToastType("info");
     setShowToast(true);
   };
 
   // Platform filter click handler
   const handlePlatformFilterClick = (platform: string) => {
     // Filter suggestions by platform
-    const filtered = searchSuggestions.filter(suggestion => 
-      suggestion.metadata?.platform?.toLowerCase() === platform.toLowerCase()
+    const filtered = searchSuggestions.filter(
+      (suggestion) => suggestion.metadata?.platform?.toLowerCase() === platform.toLowerCase(),
     );
-    
+
     setFilteredSuggestions(filtered);
 
     // Show toast with filter results
@@ -2619,49 +3622,49 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       }, 500);
     } else if (filtered.length > 1 && map.current) {
       // Add highlight layer for filtered nodes
-      if (map.current.getLayer('filtered-nodes-highlight')) {
-        map.current.removeLayer('filtered-nodes-highlight');
+      if (map.current.getLayer("filtered-nodes-highlight")) {
+        map.current.removeLayer("filtered-nodes-highlight");
       }
-      if (map.current.getSource('filtered-nodes')) {
-        map.current.removeSource('filtered-nodes');
+      if (map.current.getSource("filtered-nodes")) {
+        map.current.removeSource("filtered-nodes");
       }
 
       // Create GeoJSON for filtered nodes
-      const filteredFeatures = filtered.map(node => ({
-        type: 'Feature' as const,
+      const filteredFeatures = filtered.map((node) => ({
+        type: "Feature" as const,
         properties: {
           label: node.label,
-          platform: node.metadata?.platform || 'N/A'
+          platform: node.metadata?.platform || "N/A",
         },
         geometry: {
-          type: 'Point' as const,
-          coordinates: [node.longitude, node.latitude]
-        }
+          type: "Point" as const,
+          coordinates: [node.longitude, node.latitude],
+        },
       }));
 
-      map.current.addSource('filtered-nodes', {
-        type: 'geojson',
+      map.current.addSource("filtered-nodes", {
+        type: "geojson",
         data: {
-          type: 'FeatureCollection',
-          features: filteredFeatures
-        }
+          type: "FeatureCollection",
+          features: filteredFeatures,
+        },
       });
 
       map.current.addLayer({
-        id: 'filtered-nodes-highlight',
-        type: 'circle',
-        source: 'filtered-nodes',
+        id: "filtered-nodes-highlight",
+        type: "circle",
+        source: "filtered-nodes",
         paint: {
-          'circle-radius': 9,
-          'circle-color': '#1c9cc3ff',
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#FFFFFF',
-          'circle-opacity': 0.8
-        }
+          "circle-radius": 9,
+          "circle-color": "#1c9cc3ff",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFFFFF",
+          "circle-opacity": 0.8,
+        },
       });
 
       // Add click handler for highlighted nodes
-      map.current.on('click', 'filtered-nodes-highlight', (e) => {
+      map.current.on("click", "filtered-nodes-highlight", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
@@ -2669,31 +3672,33 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           new maplibregl.Popup()
             .setLngLat(coordinates)
-            .setHTML(`
+            .setHTML(
+              `
               <div style="font-size: 12px; padding: 8px;">
-                <strong style="font-size: 14px; color: #4F46E5;">📍 ${props?.label || 'Node'}</strong><br/>
+                <strong style="font-size: 14px; color: #4F46E5;">📍 ${props?.label || "Node"}</strong><br/>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
-                <strong>Platform:</strong> ${props?.platform || 'N/A'}<br/>
+                <strong>Platform:</strong> ${props?.platform || "N/A"}<br/>
                 <div style="margin-top: 8px; font-size: 11px; color: #6B7280;">
                   Click to view details
                 </div>
               </div>
-            `)
+            `,
+            )
             .addTo(map.current!);
         }
       });
 
-      map.current.on('mouseenter', 'filtered-nodes-highlight', () => {
-        map.current!.getCanvas().style.cursor = 'pointer';
+      map.current.on("mouseenter", "filtered-nodes-highlight", () => {
+        map.current!.getCanvas().style.cursor = "pointer";
       });
 
-      map.current.on('mouseleave', 'filtered-nodes-highlight', () => {
-        map.current!.getCanvas().style.cursor = '';
+      map.current.on("mouseleave", "filtered-nodes-highlight", () => {
+        map.current!.getCanvas().style.cursor = "";
       });
 
       // Fit map to show all filtered nodes
-      const lngs = filtered.map(n => n.longitude);
-      const lats = filtered.map(n => n.latitude);
+      const lngs = filtered.map((n) => n.longitude);
+      const lats = filtered.map((n) => n.latitude);
       const bounds = {
         minLng: Math.min(...lngs),
         maxLng: Math.max(...lngs),
@@ -2709,39 +3714,42 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         {
           padding: 100,
           duration: 1500,
-        }
+        },
       );
     } else if (filtered.length === 0) {
       // Remove highlight layer if no results
-      if (map.current && map.current.getLayer('filtered-nodes-highlight')) {
-        map.current.removeLayer('filtered-nodes-highlight');
+      if (map.current && map.current.getLayer("filtered-nodes-highlight")) {
+        map.current.removeLayer("filtered-nodes-highlight");
       }
-      if (map.current && map.current.getSource('filtered-nodes')) {
-        map.current.removeSource('filtered-nodes');
+      if (map.current && map.current.getSource("filtered-nodes")) {
+        map.current.removeSource("filtered-nodes");
       }
     }
   };
 
   // Search handler with navigation
-  const handleSearch = (query: string, suggestion?: {
-    id: string;
-    label: string;
-    type: string;
-    latitude: number;
-    longitude: number;
-    metadata?: Record<string, any>;
-  }) => {
+  const handleSearch = (
+    query: string,
+    suggestion?: {
+      id: string;
+      label: string;
+      type: string;
+      latitude: number;
+      longitude: number;
+      metadata?: Record<string, any>;
+    },
+  ) => {
     setSearchQuery(query);
 
     // Clear filtered suggestions when searching
     if (filteredSuggestions.length > 0) {
       setFilteredSuggestions([]);
       // Remove highlight layer
-      if (map.current && map.current.getLayer('filtered-nodes-highlight')) {
-        map.current.removeLayer('filtered-nodes-highlight');
+      if (map.current && map.current.getLayer("filtered-nodes-highlight")) {
+        map.current.removeLayer("filtered-nodes-highlight");
       }
-      if (map.current && map.current.getSource('filtered-nodes')) {
-        map.current.removeSource('filtered-nodes');
+      if (map.current && map.current.getSource("filtered-nodes")) {
+        map.current.removeSource("filtered-nodes");
       }
     }
 
@@ -2751,7 +3759,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         center: [suggestion.longitude, suggestion.latitude],
         zoom: 15,
         duration: 2000,
-        essential: true
+        essential: true,
       });
 
       // Show a popup at the location
@@ -2759,23 +3767,25 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         if (map.current) {
           new maplibregl.Popup({
             closeButton: true,
-            closeOnClick: false
+            closeOnClick: false,
           })
             .setLngLat([suggestion.longitude, suggestion.latitude])
-            .setHTML(`
+            .setHTML(
+              `
               <div style="font-size: 12px; padding: 8px; max-width: 280px;">
                 <strong style="font-size: 14px; color: #4F46E5;">📍 ${suggestion.label}</strong><br/>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
                   <strong>Type:</strong> <span>${suggestion.type}</span>
-                  ${suggestion.metadata?.manufacture ? `<strong>Manufacture:</strong> <span>${suggestion.metadata.manufacture}</span>` : ''}
-                  ${suggestion.metadata?.platform ? `<strong>Platform:</strong> <span>${suggestion.metadata.platform}</span>` : ''}
-                  ${suggestion.metadata?.witel ? `<strong>Witel:</strong> <span>${suggestion.metadata.witel}</span>` : ''}
-                  ${suggestion.metadata?.sto ? `<strong>STO:</strong> <span>${suggestion.metadata.sto}</span>` : ''}
-                  ${suggestion.metadata?.reg ? `<strong>Region:</strong> <span>${suggestion.metadata.reg}</span>` : ''}
+                  ${suggestion.metadata?.manufacture ? `<strong>Manufacture:</strong> <span>${suggestion.metadata.manufacture}</span>` : ""}
+                  ${suggestion.metadata?.platform ? `<strong>Platform:</strong> <span>${suggestion.metadata.platform}</span>` : ""}
+                  ${suggestion.metadata?.witel ? `<strong>Witel:</strong> <span>${suggestion.metadata.witel}</span>` : ""}
+                  ${suggestion.metadata?.sto ? `<strong>STO:</strong> <span>${suggestion.metadata.sto}</span>` : ""}
+                  ${suggestion.metadata?.reg ? `<strong>Region:</strong> <span>${suggestion.metadata.reg}</span>` : ""}
                 </div>
               </div>
-            `)
+            `,
+            )
             .addTo(map.current);
         }
       }, 2100);
@@ -2786,10 +3796,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       setShowToast(true);
     } else if (query.trim()) {
       // Fallback: search by text in suggestions
-      const found = searchSuggestions.find(s => 
-        s.label.toLowerCase().includes(query.toLowerCase())
-      );
-      
+      const found = searchSuggestions.find((s) => s.label.toLowerCase().includes(query.toLowerCase()));
+
       if (found && map.current) {
         handleSearch(query, found);
       } else {
@@ -2876,7 +3884,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     setIsLayerLoading(true);
 
     // Small delay to show loading animation
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     // Turn off all layers first
     if (showCapacityLayer) toggleCapacityLayer();
@@ -2884,6 +3892,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     if (showSirkitLayer) toggleSirkitLayer();
     if (showMultilayerMap) toggleMultilayerMapLayer();
     if (showNodeEdgesLayer) toggleNodeEdgesLayer();
+    if (showRuasRekapLayer) toggleRuasRekapLayer();
+    if (showRuasRekapStoLayer) toggleRuasRekapStoLayer();
 
     // For multilayer, show kabupaten first, then multilayer on top
     if (value === "multilayer") {
@@ -2894,7 +3904,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           addKabupatenLayer();
         }
         // Wait for kabupaten to render
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
       // Then show multilayer on top
       if (!showMultilayerMap) toggleMultilayerMapLayer();
@@ -2915,16 +3925,18 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           }
         }
       }
-      
+
       // Show the selected layer
       if (value === "capacity" && !showCapacityLayer) toggleCapacityLayer();
       else if (value === "sigma" && !showSigmaLayer) toggleSigmaLayer();
       else if (value === "sirkit" && !showSirkitLayer) toggleSirkitLayer();
       else if (value === "nodeedges" && !showNodeEdgesLayer) toggleNodeEdgesLayer();
+      else if (value === "ruasrekap" && !showRuasRekapLayer) toggleRuasRekapLayer();
+      else if (value === "ruasrekapsto" && !showRuasRekapStoLayer) toggleRuasRekapStoLayer();
     }
 
     // Additional delay for layer rendering
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     setIsLayerLoading(false);
   };
 
@@ -2944,12 +3956,27 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         airportsDataAvailable={!!airportsData}
         multilayerMapDataAvailable={!!multilayerMapData}
         nodeEdgesDataAvailable={!!nodeEdgesData}
+        ruasRekapDataAvailable={!!ruasRekapData}
+        ruasRekapData={ruasRekapData}
+        _filteredRuasNodes={filteredRuasNodes}
+        onFilterRuasNodes={useCallback(
+          (nodeIds: string[]) => {
+            if (selectedLayer === "ruasrekapsto") {
+              setFilteredRuasStoNodes(nodeIds);
+            } else {
+              setFilteredRuasNodes(nodeIds);
+            }
+          },
+          [selectedLayer],
+        )}
+        ruasRekapStoDataAvailable={!!ruasRekapStoData}
+        ruasRekapStoData={ruasRekapStoData}
         isLayerLoading={isLayerLoading}
       />
 
       {/* Search Bar */}
-      <CompactSearchBar 
-        onSearch={handleSearch} 
+      <CompactSearchBar
+        onSearch={handleSearch}
         suggestions={filteredSuggestions.length > 0 ? filteredSuggestions : searchSuggestions}
         platformFilters={platformFilters}
         onFilterClick={handlePlatformFilterClick}
@@ -3084,11 +4111,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               value:
                 capacityData.length > 0
                   ? `${Math.round(
-                    capacityData.reduce((acc, item) => {
-                      const util = parseFloat(item.utilization || "0");
-                      return acc + (isNaN(util) ? 0 : util);
-                    }, 0) / capacityData.length,
-                  )}%`
+                      capacityData.reduce((acc, item) => {
+                        const util = parseFloat(item.utilization || "0");
+                        return acc + (isNaN(util) ? 0 : util);
+                      }, 0) / capacityData.length,
+                    )}%`
                   : "0%",
               change: 5,
             },
@@ -3097,11 +4124,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               value:
                 capacityData.length > 0
                   ? `${(
-                    capacityData.reduce((acc, item) => {
-                      const cap = parseFloat(item.capacity || "0");
-                      return acc + (isNaN(cap) ? 0 : cap);
-                    }, 0) / 1000
-                  ).toFixed(1)}TB`
+                      capacityData.reduce((acc, item) => {
+                        const cap = parseFloat(item.capacity || "0");
+                        return acc + (isNaN(cap) ? 0 : cap);
+                      }, 0) / 1000
+                    ).toFixed(1)}TB`
                   : "0TB",
               change: 15,
             },
