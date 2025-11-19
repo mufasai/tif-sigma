@@ -101,7 +101,7 @@ export function DataTablePanel({ elements, onClose }: DataTablePanelProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
-                  width: "100%",
+                  width: "98%",
                   padding: "8px 12px",
                   fontSize: "14px",
                   border: "1px solid #D1D5DB",
