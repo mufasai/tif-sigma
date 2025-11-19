@@ -772,7 +772,7 @@ export function LeftSidebar({
                   >
                     <option value="none">Pilih Layer</option>
                     <option value="ruasrekap" disabled={!ruasRekapDataAvailable}>
-                      Ruas Rekap{" "}
+                      Ruas Rekap TERA {" "}
                       {!ruasRekapDataAvailable ? "(Loading...)" : `(${ruasRekapData?.nodes?.length || 0} nodes)`}
                     </option>
                     <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
