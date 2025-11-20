@@ -86,7 +86,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [airportsData, setAirportsData] = useState<SerializedGraph | null>(null);
   const [showSirkitLayer, setShowSirkitLayer] = useState(false);
   const [sirkitData, setSirkitData] = useState<Record<string, string>[]>([]);
-  const [selectedLayer, setSelectedLayer] = useState<string>("ruasrekap");
+  const [selectedLayer, setSelectedLayer] = useState<string>("ruasrekapsto");
   const [showMultilayerMap, setShowMultilayerMap] = useState(false);
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
   const [showNodeEdgesLayer, setShowNodeEdgesLayer] = useState(false);
@@ -354,12 +354,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const allNodeIds = data.nodes.map((node: any) => node.id);
           setFilteredRuasNodes(allNodeIds);
         }
-
-        // Set default layer to ruas_rekap after loading
-        setTimeout(() => {
-          setSelectedLayer("ruasrekap");
-          setShowRuasRekapLayer(true);
-        }, 1000);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error("Error loading ruas rekap data:", error);
@@ -387,6 +381,12 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const allNodeIds = data.nodes.map((node: any) => node.id);
           setFilteredRuasStoNodes(allNodeIds);
         }
+
+        // Set default layer to ruas_rekap_sto after loading
+        setTimeout(() => {
+          setSelectedLayer("ruasrekapsto");
+          setShowRuasRekapStoLayer(true);
+        }, 1000);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error("Error loading ruas rekap STO data:", error);
@@ -403,7 +403,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
   }, [mapLoaded, ruasRekapData, showRuasRekapLayer, filteredRuasNodes]);
 
-  // Add ruas rekap STO layer when data is loaded
+  // Add ruas rekap STO layer when data is loaded and re-render when filter changes
   useEffect(() => {
     if (mapLoaded && ruasRekapStoData && showRuasRekapStoLayer && map.current) {
       addRuasRekapStoLayer();
@@ -2097,350 +2097,509 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const addRuasRekapStoLayer = () => {
     if (!map.current || !ruasRekapStoData) return;
 
-    // Remove existing layers first (order matters!)
-    const layersToRemove = ["ruas-rekap-sto-points", "ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow"];
-    layersToRemove.forEach((layerId) => {
-      if (map.current?.getLayer(layerId)) {
-        map.current?.removeLayer(layerId);
+    try {
+      // Remove existing layers first (order matters!)
+      const layersToRemove = ["ruas-rekap-sto-points", "ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow"];
+      layersToRemove.forEach((layerId) => {
+        if (map.current?.getLayer(layerId)) {
+          map.current?.removeLayer(layerId);
+        }
+      });
+
+      // Then remove source after all layers are removed
+      if (map.current?.getSource("ruasrekapsto")) {
+        map.current?.removeSource("ruasrekapsto");
       }
-    });
 
-    // Then remove source after all layers are removed
-    if (map.current?.getSource("ruas-rekap-sto-lines-glow")) {
-      map.current?.removeSource("ruas-rekap-sto-lines-glow");
-    }
+      // Filter nodes based on selected layers
+      const nodesToShow =
+        filteredRuasStoNodes.length > 0
+          ? ruasRekapStoData.nodes.filter((node: any) => filteredRuasStoNodes.includes(node.id))
+          : ruasRekapStoData.nodes;
 
-    // Filter nodes based on selected layers
-    const nodesToShow =
-      filteredRuasStoNodes.length > 0
-        ? ruasRekapStoData.nodes.filter((node: any) => filteredRuasStoNodes.includes(node.id))
-        : ruasRekapStoData.nodes;
+      const nodeIdsSet = new Set(nodesToShow.map((node: any) => node.id));
 
-    const nodeIdsSet = new Set(nodesToShow.map((node: any) => node.id));
+      // Create line features from edges with curved lines
+      const lineFeatures = ruasRekapStoData.edges
+        .filter((edge: any) => nodeIdsSet.has(edge.source) && nodeIdsSet.has(edge.target))
+        .map((edge: any) => {
+          const curvedCoords = createCurvedLine(edge.source_lon, edge.source_lat, edge.target_lon, edge.target_lat, 0.2);
 
-    // Create line features from edges with curved lines
-    const lineFeatures = ruasRekapStoData.edges
-      .filter((edge: any) => nodeIdsSet.has(edge.source) && nodeIdsSet.has(edge.target))
-      .map((edge: any) => {
-        const curvedCoords = createCurvedLine(edge.source_lon, edge.source_lat, edge.target_lon, edge.target_lat, 0.15);
+          return {
+            type: "Feature" as const,
+            properties: {
+              id: edge.id,
+              ruas: edge.ruas_list,
+              source: edge.source,
+              target: edge.target,
+              capacity: edge.total_capacity,
+              layer: edge.layer_list,
+              traffic_95_in: edge.total_traffic_95_in,
+              traffic_95_out: edge.total_traffic_95_out,
+              traffic_max_in: edge.total_traffic_max_in,
+              traffic_max_out: edge.total_traffic_max_out,
+              utilization: edge.avg_utilization,
+            },
+            geometry: {
+              type: "LineString" as const,
+              coordinates: curvedCoords,
+            },
+          };
+        });
 
-        return {
-          type: "Feature" as const,
-          properties: {
-            id: edge.id,
-            ruas: edge.ruas_list,
-            source: edge.source,
-            target: edge.target,
-            capacity: edge.total_capacity,
-            layer: edge.layer_list,
-            traffic_95_in: edge.total_traffic_95_in,
-            traffic_95_out: edge.total_traffic_95_out,
-            traffic_max_in: edge.total_traffic_max_in,
-            traffic_max_out: edge.total_traffic_max_out,
-            utilization: edge.avg_utilization,
-          },
-          geometry: {
-            type: "LineString" as const,
-            coordinates: curvedCoords,
-          },
+      // Create point features from nodes
+      const pointFeatures = nodesToShow.map((node: any) => ({
+        type: "Feature" as const,
+        properties: {
+          id: node.id,
+          label: node.label,
+          size: node.size || 3,
+          layer: node.layer || "N/A",
+          platform: node.platform || "N/A",
+          reg: node.reg || "N/A",
+          witel: node.witel || "N/A",
+          types: node.types || "N/A",
+        },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [node.x, node.y],
+        },
+      }));
+
+      // Combine all features
+      const allFeatures = [...lineFeatures, ...pointFeatures];
+
+      // Add source with all features
+      map.current.addSource("ruasrekapsto", {
+        type: "geojson",
+        data: {
+          type: "FeatureCollection",
+          features: allFeatures,
+        },
+      });
+
+      // Add line glow layer (bottom layer)
+      map.current.addLayer({
+        id: "ruas-rekap-sto-lines-glow",
+        type: "line",
+        source: "ruasrekapsto",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#10B981",
+          "line-width": 4,
+          "line-opacity": 0.15,
+          "line-blur": 2,
+        },
+      });
+
+      // Add line layer
+      map.current.addLayer({
+        id: "ruas-rekap-sto-lines",
+        type: "line",
+        source: "ruasrekapsto",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": "#059669",
+          "line-width": 0.8,
+          "line-opacity": 0.5,
+        },
+      });
+
+      // Add points layer (top layer)
+      map.current.addLayer({
+        id: "ruas-rekap-sto-points",
+        type: "circle",
+        source: "ruasrekapsto",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": ["*", ["get", "size"], 1],
+          "circle-color": "#10B981",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFFFFF",
+          "circle-opacity": 0.9,
+        },
+      });
+
+      // Add click handler for points
+      map.current.on("click", "ruas-rekap-sto-points", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Remove hover popup when clicking
+          hoverPopup.remove();
+
+          // Count edges connected to this node
+          const connectedEdges = ruasRekapStoData.edges.filter(
+            (edge: any) => edge.source === props?.id || edge.target === props?.id
+          );
+          const connectionCount = connectedEdges.length;
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 10px; max-width: 300px;">
+                <strong style="font-size: 15px; color: #10B981;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
+                <div style="font-size: 10px; color: #6B7280; margin-top: 2px;">STO ID: ${props?.id || "N/A"}</div>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 11px;">
+                  <strong style="color: #6B7280;">Layer:</strong> <span style="color: #1F2937;">${props?.layer || "N/A"}</span>
+                  <strong style="color: #6B7280;">Platform:</strong> <span style="color: #1F2937;">${props?.platform || "N/A"}</span>
+                  <strong style="color: #6B7280;">Type:</strong> <span style="color: #1F2937;">${props?.types || "N/A"}</span>
+                  <strong style="color: #6B7280;">Region:</strong> <span style="color: #1F2937;">REG ${props?.reg || "N/A"}</span>
+                  <strong style="color: #6B7280;">Witel:</strong> <span style="color: #1F2937;">${props?.witel || "N/A"}</span>
+                </div>
+                ${connectionCount > 0 ? `<div style="margin-top: 10px; padding: 8px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border-left: 3px solid #10B981; border-radius: 4px; font-size: 11px;"><strong style="color: #059669;">🔗 Connections:</strong> <span style="color: #10B981; font-weight: 600;">${connectionCount} links</span></div>` : ""}
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+
+          // Show topology drawer
+          setTopologyConnection({
+            from: props?.label || props?.id || "Node",
+            to: "Network",
+            nodeData: props,
+          });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Add click handler for lines
+      map.current.on("click", "ruas-rekap-sto-lines", (e) => {
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Remove hover popup when clicking
+          hoverPopup.remove();
+
+          // Get source and target labels from the edge data
+          const sourceNode = ruasRekapStoData.nodes.find((n: any) => n.id === props?.source);
+          const targetNode = ruasRekapStoData.nodes.find((n: any) => n.id === props?.target);
+
+          const fromLabel = sourceNode?.label || props?.source || "Node A";
+          const toLabel = targetNode?.label || props?.target || "Node B";
+          const fromId = props?.source || "N/A";
+          const toId = props?.target || "N/A";
+
+          const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+          const trafficInGbps = props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) : "0";
+          const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
+          const trafficMaxInGbps = props?.traffic_max_in ? (props.traffic_max_in / 1000000000).toFixed(2) : "0";
+          const trafficMaxOutGbps = props?.traffic_max_out ? (props.traffic_max_out / 1000000000).toFixed(2) : "0";
+
+          // Calculate utilization
+          let utilizationPercent = "0.00";
+          if (props?.capacity && props.capacity > 0) {
+            const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
+            utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
+          }
+
+          // Determine utilization color
+          let utilizationColor = "#2ECC71"; // Green
+          let utilizationBg = "rgba(46, 204, 113, 0.1)";
+          if (parseFloat(utilizationPercent) > 80) {
+            utilizationColor = "#E74C3C"; // Red
+            utilizationBg = "rgba(231, 76, 60, 0.1)";
+          } else if (parseFloat(utilizationPercent) > 60) {
+            utilizationColor = "#F39C12"; // Orange
+            utilizationBg = "rgba(243, 156, 18, 0.1)";
+          } else if (parseFloat(utilizationPercent) > 40) {
+            utilizationColor = "#F1C40F"; // Yellow
+            utilizationBg = "rgba(241, 196, 15, 0.1)";
+          }
+
+          new maplibregl.Popup()
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 12px; padding: 10px; max-width: 340px;">
+                <strong style="font-size: 15px; color: #059669;">🔗 Link Connection</strong><br/>
+                <div style="font-size: 10px; color: #6B7280; margin-top: 2px;">${props?.ruas || "N/A"}</div>
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                
+                <div style="display: grid; gap: 6px; font-size: 11px;">
+                  <div style="padding: 6px; background: rgba(59, 130, 246, 0.05); border-radius: 4px;">
+                    <strong style="color: #3B82F6;">📍 Source:</strong> <span style="color: #1F2937; font-weight: 600;">${fromLabel}</span>
+                    <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">ID: ${fromId}</div>
+                  </div>
+                  
+                  <div style="padding: 6px; background: rgba(16, 185, 129, 0.05); border-radius: 4px;">
+                    <strong style="color: #10B981;">📍 Target:</strong> <span style="color: #1F2937; font-weight: 600;">${toLabel}</span>
+                    <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">ID: ${toId}</div>
+                  </div>
+                </div>
+                
+                <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 11px;">
+                  <strong style="color: #6B7280;">Layer:</strong> <span style="color: #1F2937;">${props?.layer || "N/A"}</span>
+                  <strong style="color: #6B7280;">Link Count:</strong> <span style="color: #1F2937;">${props?.link_count || 1}</span>
+                  <strong style="color: #6B7280;">Capacity:</strong> <span style="color: #059669; font-weight: 600;">${capacityGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Traffic In (95%):</strong> <span style="color: #3B82F6; font-weight: 600;">${trafficInGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Traffic Out (95%):</strong> <span style="color: #10B981; font-weight: 600;">${trafficOutGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Max Traffic In:</strong> <span style="color: #6366F1;">${trafficMaxInGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
+                </div>
+                
+                <div style="margin-top: 10px; padding: 8px; background: ${utilizationBg}; border-left: 3px solid ${utilizationColor}; border-radius: 4px;">
+                  <strong style="color: #6B7280; font-size: 11px;">Utilization:</strong> 
+                  <span style="color: ${utilizationColor}; font-weight: 700; font-size: 13px; margin-left: 4px;">${utilizationPercent}%</span>
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+
+          // Set link details for LinkDetailsPanel
+          setSelectedLink({
+            from: fromLabel,
+            to: toLabel,
+            description: props?.ruas || `${fromLabel} → ${toLabel}`,
+            bandwidth_mbps: props?.capacity ? props.capacity / 1000000 : 10000,
+            utilization: parseFloat(utilizationPercent),
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: props?.link_count || 1,
+            totalCapacity: `${capacityGbps}G`,
+            type: props?.layer || "L2_AGGREGATION",
+          });
+          setShowLinkDetails(true);
+
+          // Set topology connection
+          setTopologyConnection({ from: fromLabel, to: toLabel });
+          setShowTopologyDrawer(true);
+        }
+      });
+
+      // Create a popup for hover
+      const hoverPopup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        offset: 15,
+        className: "hover-popup",
+      });
+
+      // Add hover handlers for points with popup
+      map.current.on("mouseenter", "ruas-rekap-sto-points", (e) => {
+        map.current!.getCanvas().style.cursor = "pointer";
+
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = (feature.geometry as any).coordinates.slice();
+
+          // Count connections
+          const connectedEdges = ruasRekapStoData.edges.filter(
+            (edge: any) => edge.source === props?.id || edge.target === props?.id
+          );
+          const connectionCount = connectedEdges.length;
+
+          hoverPopup
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 11px; padding: 8px; max-width: 240px;">
+                <strong style="font-size: 13px; color: #10B981;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
+                <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">STO ID: ${props?.id || "N/A"}</div>
+                <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
+                  <strong style="color: #6B7280;">Layer:</strong> <span style="color: #1F2937;">${props?.layer || "N/A"}</span>
+                  <strong style="color: #6B7280;">Platform:</strong> <span style="color: #1F2937;">${props?.platform || "N/A"}</span>
+                  <strong style="color: #6B7280;">Witel:</strong> <span style="color: #1F2937;">${props?.witel || "N/A"}</span>
+                  <strong style="color: #6B7280;">Links:</strong> <span style="color: #10B981; font-weight: 600;">${connectionCount}</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center; font-style: italic;">
+                  Click for full details
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on("mouseleave", "ruas-rekap-sto-points", () => {
+        map.current!.getCanvas().style.cursor = "";
+        hoverPopup.remove();
+      });
+
+      // Add hover handlers for lines (edges) with popup
+      map.current.on("mouseenter", "ruas-rekap-sto-lines", (e) => {
+        map.current!.getCanvas().style.cursor = "pointer";
+
+        if (e.features && e.features.length > 0) {
+          const feature = e.features[0];
+          const props = feature.properties;
+          const coordinates = e.lngLat;
+
+          // Get source and target labels
+          const sourceNode = ruasRekapStoData.nodes.find((n: any) => n.id === props?.source);
+          const targetNode = ruasRekapStoData.nodes.find((n: any) => n.id === props?.target);
+          const fromLabel = sourceNode?.label || props?.source || "N/A";
+          const toLabel = targetNode?.label || props?.target || "N/A";
+
+          // Calculate utilization percentage if capacity exists
+          const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+          const trafficInGbps = props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) : "0";
+          const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
+
+          // Calculate actual utilization from traffic
+          let utilizationPercent = "0.00";
+          if (props?.capacity && props.capacity > 0) {
+            const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
+            utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
+          }
+
+          // Determine utilization color
+          let utilizationColor = "#2ECC71"; // Green
+          if (parseFloat(utilizationPercent) > 80) {
+            utilizationColor = "#E74C3C"; // Red
+          } else if (parseFloat(utilizationPercent) > 60) {
+            utilizationColor = "#F39C12"; // Orange
+          } else if (parseFloat(utilizationPercent) > 40) {
+            utilizationColor = "#F1C40F"; // Yellow
+          }
+
+          hoverPopup
+            .setLngLat(coordinates)
+            .setHTML(
+              `
+              <div style="font-size: 11px; padding: 8px; max-width: 280px;">
+                <strong style="font-size: 13px; color: #059669;">🔗 Link</strong><br/>
+                <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">${props?.ruas || "N/A"}</div>
+                <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; gap: 4px; font-size: 10px;">
+                  <div><strong style="color: #6B7280;">From:</strong> <span style="color: #3B82F6; font-weight: 600;">${fromLabel}</span></div>
+                  <div><strong style="color: #6B7280;">To:</strong> <span style="color: #10B981; font-weight: 600;">${toLabel}</span></div>
+                </div>
+                <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
+                  <strong style="color: #6B7280;">Capacity:</strong> <span style="color: #10B981; font-weight: 600;">${capacityGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Traffic In:</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Traffic Out:</strong> <span style="color: #10B981;">${trafficOutGbps} Gbps</span>
+                  <strong style="color: #6B7280;">Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 700;">${utilizationPercent}%</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center; font-style: italic;">
+                  Click for full details
+                </div>
+              </div>
+            `,
+            )
+            .addTo(map.current!);
+        }
+      });
+
+      map.current.on("mouseleave", "ruas-rekap-sto-lines", () => {
+        map.current!.getCanvas().style.cursor = "";
+        hoverPopup.remove();
+      });
+
+      // Add hover handlers for glow lines layer (to ensure hover works across entire line width)
+      // map.current.on("mouseenter", "ruas-rekap-sto-lines-glow", (e) => {
+      //   map.current!.getCanvas().style.cursor = "pointer";
+
+      //   if (e.features && e.features.length > 0) {
+      //     const feature = e.features[0];
+      //     const props = feature.properties;
+      //     const coordinates = e.lngLat;
+
+      //     // Get source and target labels
+      //     const sourceNode = ruasRekapStoData.nodes.find((n: any) => n.id === props?.source);
+      //     const targetNode = ruasRekapStoData.nodes.find((n: any) => n.id === props?.target);
+      //     const fromLabel = sourceNode?.label || props?.source || "N/A";
+      //     const toLabel = targetNode?.label || props?.target || "N/A";
+
+      //     // Calculate utilization percentage if capacity exists
+      //     const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+      //     const trafficInGbps = props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) : "0";
+      //     const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
+
+      //     // Calculate actual utilization from traffic
+      //     let utilizationPercent = "0.00";
+      //     if (props?.capacity && props.capacity > 0) {
+      //       const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
+      //       utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
+      //     }
+
+      //     // Determine utilization color
+      //     let utilizationColor = "#2ECC71"; // Green
+      //     if (parseFloat(utilizationPercent) > 80) {
+      //       utilizationColor = "#E74C3C"; // Red
+      //     } else if (parseFloat(utilizationPercent) > 60) {
+      //       utilizationColor = "#F39C12"; // Orange
+      //     } else if (parseFloat(utilizationPercent) > 40) {
+      //       utilizationColor = "#F1C40F"; // Yellow
+      //     }
+
+      //     hoverPopup
+      //       .setLngLat(coordinates)
+      //       .setHTML(
+      //         `
+      //         <div style="font-size: 11px; padding: 8px; max-width: 280px;">
+      //           <strong style="font-size: 13px; color: #059669;">🔗 Link</strong><br/>
+      //           <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">${props?.ruas || "N/A"}</div>
+      //           <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+      //           <div style="display: grid; gap: 4px; font-size: 10px;">
+      //             <div><strong style="color: #6B7280;">From:</strong> <span style="color: #3B82F6; font-weight: 600;">${fromLabel}</span></div>
+      //             <div><strong style="color: #6B7280;">To:</strong> <span style="color: #10B981; font-weight: 600;">${toLabel}</span></div>
+      //           </div>
+      //           <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
+      //           <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
+      //             <strong style="color: #6B7280;">Capacity:</strong> <span style="color: #10B981; font-weight: 600;">${capacityGbps} Gbps</span>
+      //             <strong style="color: #6B7280;">Traffic In:</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
+      //             <strong style="color: #6B7280;">Traffic Out:</strong> <span style="color: #10B981;">${trafficOutGbps} Gbps</span>
+      //             <strong style="color: #6B7280;">Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 700;">${utilizationPercent}%</span>
+      //           </div>
+      //           <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center; font-style: italic;">
+      //             Click for full details
+      //           </div>
+      //         </div>
+      //       `,
+      //       )
+      //       .addTo(map.current!);
+      //   }
+      // });
+
+      map.current.on("mouseleave", "ruas-rekap-sto-lines-glow", () => {
+        map.current!.getCanvas().style.cursor = "";
+        hoverPopup.remove();
+      });
+
+      // Calculate bounds to fit all nodes
+      if (nodesToShow.length > 0) {
+        const lngs = nodesToShow.map((n: any) => n.x);
+        const lats = nodesToShow.map((n: any) => n.y);
+        const bounds = {
+          minLng: Math.min(...lngs),
+          maxLng: Math.max(...lngs),
+          minLat: Math.min(...lats),
+          maxLat: Math.max(...lats),
         };
-      });
 
-    // Create point features from nodes
-    nodesToShow.map((node: any) => ({
-      type: "Feature" as const,
-      properties: {
-        id: node.id,
-        label: node.label,
-        size: node.size,
-        topologyCount: 0,
-        topology: JSON.stringify([]),
-      },
-      geometry: {
-        type: "Point" as const,
-        coordinates: [node.x, node.y],
-      },
-    }));
-
-    // Add line glow layer
-    map.current?.addSource("ruas-rekap-sto-lines-glow", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: lineFeatures,
-      },
-    });
-
-    map.current?.addLayer({
-      id: "ruas-rekap-sto-lines-glow",
-      type: "line",
-      source: "ruas-rekap-sto-lines-glow",
-      filter: ["==", "$type", "LineString"],
-      paint: {
-        "line-color": "#4CAF50",
-        "line-width": 8,
-        "line-opacity": 0.3,
-        "line-blur": 4,
-      },
-    });
-
-    // Add main line layer
-    map.current?.addLayer({
-      id: "ruas-rekap-sto-lines",
-      type: "line",
-      source: "ruas-rekap-sto-lines-glow",
-      filter: ["==", "$type", "LineString"],
-      paint: {
-        "line-color": "#4CAF50",
-        "line-width": 3,
-        "line-opacity": 0.8,
-      },
-    });
-
-    // Add point layer
-    map.current?.addLayer({
-      id: "ruas-rekap-sto-points",
-      type: "circle",
-      source: "ruas-rekap-sto-lines-glow",
-      filter: ["==", "$type", "Point"],
-      paint: {
-        "circle-radius": 8,
-        "circle-color": "#4CAF50",
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
-        "circle-opacity": 0.9,
-      },
-    });
-
-    // Add click handler for points
-    map.current?.on("click", "ruas-rekap-sto-points", (e) => {
-      if (!e.features || e.features.length === 0) return;
-      const feature = e.features[0];
-      const props = feature.properties;
-      const coordinates = (feature.geometry as any).coordinates.slice();
-
-      let topologyData: any[] = [];
-      try {
-        const parsed = JSON.parse(props.topology || "[]");
-        topologyData = Array.isArray(parsed) ? parsed : [];
-      } catch (_error) {
-        topologyData = [];
+        // Fit map to show all nodes
+        map.current.fitBounds(
+          [
+            [bounds.minLng, bounds.minLat],
+            [bounds.maxLng, bounds.maxLat],
+          ],
+          {
+            padding: 50,
+            duration: 1000,
+          },
+        );
       }
 
-      const topologyCount = topologyData.length;
-      const topologyInfo = topologyCount > 0 ? `<br><strong>Topology Links:</strong> ${topologyCount}` : "";
-
-      new maplibregl.Popup()
-        .setLngLat(coordinates)
-        .setHTML(
-          `
-          <div style="font-family: 'Inter', sans-serif; padding: 8px;">
-            <div style="font-size: 14px; font-weight: 600; color: #1a1a1a; margin-bottom: 4px;">
-              ${props.label}
-            </div>
-            <div style="font-size: 12px; color: #666; margin-bottom: 2px;">
-              <strong>ID:</strong> ${props.id}
-            </div>
-            ${topologyInfo}
-          </div>
-        `,
-        )
-        .addTo(map.current!);
-
-      const from = props.id;
-      const to = props.id;
-      const nodeData = props;
-      const topology = topologyData;
-
-      setTopologyConnection({ from, to, nodeData, topology });
-      setShowTopologyDrawer(true);
-    });
-
-    // Add click handler for lines
-    map.current?.on("click", "ruas-rekap-sto-lines", (e) => {
-      if (!e.features || e.features.length === 0) return;
-      const feature = e.features[0];
-      const props = feature.properties;
-
-      const from = props.source || "Unknown";
-      const to = props.target || "Unknown";
-      const capacityGbps = props.capacity ? (props.capacity / 1_000_000_000).toFixed(2) : "N/A";
-
-      new maplibregl.Popup()
-        .setLngLat(e.lngLat)
-        .setHTML(
-          `
-          <div style="font-family: 'Inter', sans-serif; padding: 12px; min-width: 280px;">
-            <div style="font-size: 16px; font-weight: 600; color: #1a1a1a; margin-bottom: 8px; border-bottom: 2px solid #4CAF50; padding-bottom: 6px;">
-              🔗 Link Connection
-            </div>
-            <div style="display: grid; gap: 6px; font-size: 13px;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #666; font-weight: 500;">From:</span>
-                <span style="color: #1a1a1a; font-weight: 600;">${from}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #666; font-weight: 500;">To:</span>
-                <span style="color: #1a1a1a; font-weight: 600;">${to}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #666; font-weight: 500;">Capacity:</span>
-                <span style="color: #4CAF50; font-weight: 600;">${capacityGbps} Gbps</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="color: #666; font-weight: 500;">Layer:</span>
-                <span style="color: #1a1a1a;">${props.layer || "N/A"}</span>
-              </div>
-            </div>
-          </div>
-        `,
-        )
-        .addTo(map.current!);
-
-      const description = props.ruas || "";
-      const bandwidth_mbps = props.capacity ? props.capacity / 1_000_000 : undefined;
-      const utilization = props.utilization;
-      const latency = undefined;
-      const packetLoss = undefined;
-      const linkCount = 1;
-      const totalCapacity = capacityGbps + " Gbps";
-      const type = props.layer;
-
-      setSelectedLink({
-        from,
-        to,
-        description,
-        bandwidth_mbps,
-        utilization,
-        latency,
-        packetLoss,
-        linkCount,
-        totalCapacity,
-        type,
-      });
-      setShowLinkDetails(true);
-    });
-
-    // Add hover popup for lines
-    const hoverPopup = new maplibregl.Popup({
-      closeButton: false,
-      closeOnClick: false,
-      offset: 10,
-      className: "hover-popup",
-    });
-
-    // Hover handler for points
-    map.current?.on("mouseenter", "ruas-rekap-sto-points", (e) => {
-      if (!e.features || e.features.length === 0) return;
-      const feature = e.features[0];
-      const props = feature.properties;
-      const coordinates = (feature.geometry as any).coordinates.slice();
-
-      const topologyCount = 0;
-
-      map.current!.getCanvas().style.cursor = "pointer";
-
-      hoverPopup
-        .setLngLat(coordinates)
-        .setHTML(
-          `
-          <div style="font-family: 'Inter', sans-serif; padding: 8px; background: rgba(0, 0, 0, 0.9); border-radius: 6px; color: white;">
-            <div style="font-size: 12px; font-weight: 600; margin-bottom: 2px;">
-              ${props.label}
-            </div>
-            <div style="font-size: 10px; opacity: 0.8;">
-              ID: ${props.id}
-            </div>
-            ${topologyCount > 0 ? `<div style="font-size: 10px; opacity: 0.8; margin-top: 2px;">Links: ${topologyCount}</div>` : ""}
-          </div>
-        `,
-        )
-        .addTo(map.current!);
-    });
-
-    map.current?.on("mouseleave", "ruas-rekap-sto-points", () => {
-      map.current!.getCanvas().style.cursor = "";
-      hoverPopup.remove();
-    });
-
-    // Hover handler for lines
-    map.current?.on("mouseenter", "ruas-rekap-sto-lines", (e) => {
-      if (!e.features || e.features.length === 0) return;
-      const feature = e.features[0];
-      const props = feature.properties;
-      const coordinates = e.lngLat;
-
-      const capacityGbps = props.capacity ? (props.capacity / 1_000_000_000).toFixed(2) : "N/A";
-      const trafficInGbps = props.traffic_95_in ? (props.traffic_95_in / 1_000_000_000).toFixed(2) : "N/A";
-      const trafficOutGbps = props.traffic_95_out ? (props.traffic_95_out / 1_000_000_000).toFixed(2) : "N/A";
-
-      let utilizationPercent = props.utilization ? (props.utilization * 100).toFixed(2) : "0.00";
-      if (props.capacity > 0 && props.traffic_95_out > 0) {
-        const maxTraffic = Math.max(props.traffic_95_in || 0, props.traffic_95_out || 0);
-        utilizationPercent = ((maxTraffic / props.capacity) * 100).toFixed(2);
-      }
-
-      let utilizationColor = "#4CAF50";
-      if (parseFloat(utilizationPercent) > 80) {
-        utilizationColor = "#f44336";
-      } else if (parseFloat(utilizationPercent) > 60) {
-        utilizationColor = "#ff9800";
-      }
-
-      map.current!.getCanvas().style.cursor = "pointer";
-
-      hoverPopup
-        .setLngLat(coordinates)
-        .setHTML(
-          `
-          <div style="font-family: 'Inter', sans-serif; padding: 10px; background: rgba(0, 0, 0, 0.95); border-radius: 8px; color: white; min-width: 200px;">
-            <div style="font-size: 11px; font-weight: 600; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.2);">
-              ${props.source} → ${props.target}
-            </div>
-            <div style="display: grid; gap: 3px; font-size: 10px;">
-              <div style="display: flex; justify-content: space-between;">
-                <span style="opacity: 0.8;">Capacity:</span>
-                <span style="font-weight: 600;">${capacityGbps} Gbps</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="opacity: 0.8;">Traffic In:</span>
-                <span>${trafficInGbps} Gbps</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="opacity: 0.8;">Traffic Out:</span>
-                <span>${trafficOutGbps} Gbps</span>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span style="opacity: 0.8;">Utilization:</span>
-                <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
-              </div>
-            </div>
-          </div>
-        `,
-        )
-        .addTo(map.current!);
-    });
-
-    map.current?.on("mouseleave", "ruas-rekap-sto-lines", () => {
-      map.current!.getCanvas().style.cursor = "";
-      hoverPopup.remove();
-    });
-
-    // Fit bounds to show all data
-    if (nodesToShow.length > 0) {
-      const lngs = nodesToShow.map((node: any) => node.x);
-      const lats = nodesToShow.map((node: any) => node.y);
-      const bounds: [number, number, number, number] = [
-        Math.min(...lngs),
-        Math.min(...lats),
-        Math.max(...lngs),
-        Math.max(...lats),
-      ];
-
-      map.current?.fitBounds(bounds, {
-        padding: 100,
-        duration: 1000,
-      });
+      // eslint-disable-next-line no-console
+      console.log("Ruas rekap STO layer added successfully");
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Error adding ruas rekap STO layer:", error);
+      alert(`Error adding ruas rekap STO layer: ${error}`);
     }
   };
 
@@ -4111,11 +4270,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               value:
                 capacityData.length > 0
                   ? `${Math.round(
-                      capacityData.reduce((acc, item) => {
-                        const util = parseFloat(item.utilization || "0");
-                        return acc + (isNaN(util) ? 0 : util);
-                      }, 0) / capacityData.length,
-                    )}%`
+                    capacityData.reduce((acc, item) => {
+                      const util = parseFloat(item.utilization || "0");
+                      return acc + (isNaN(util) ? 0 : util);
+                    }, 0) / capacityData.length,
+                  )}%`
                   : "0%",
               change: 5,
             },
@@ -4124,11 +4283,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               value:
                 capacityData.length > 0
                   ? `${(
-                      capacityData.reduce((acc, item) => {
-                        const cap = parseFloat(item.capacity || "0");
-                        return acc + (isNaN(cap) ? 0 : cap);
-                      }, 0) / 1000
-                    ).toFixed(1)}TB`
+                    capacityData.reduce((acc, item) => {
+                      const cap = parseFloat(item.capacity || "0");
+                      return acc + (isNaN(cap) ? 0 : cap);
+                    }, 0) / 1000
+                  ).toFixed(1)}TB`
                   : "0TB",
               change: 15,
             },
