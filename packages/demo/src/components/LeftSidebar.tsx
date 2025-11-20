@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useRef, useState } from "react";
 import {
   FiBarChart2,
@@ -98,7 +99,27 @@ export function LeftSidebar({
         }
       });
     } else {
-      // For Ruas Rekap: layer is in topology array
+      // For Ruas Rekap: support both new structure (node.layer + edges.layer_list) and old structure (node.topology)
+
+      // Get layers from nodes
+      currentData.nodes.forEach((node) => {
+        if (node.layer) {
+          layersSet.add(node.layer);
+        }
+      });
+
+      // Get layers from edges (new structure)
+      if (currentData.edges && Array.isArray(currentData.edges)) {
+        currentData.edges.forEach((edge: any) => {
+          if (edge.layer_list) {
+            layersSet.add(edge.layer_list);
+          } else if (edge.layer) {
+            layersSet.add(edge.layer);
+          }
+        });
+      }
+
+      // Fallback: Get layers from topology (old structure)
       currentData.nodes.forEach((node) => {
         if (node.topology && Array.isArray(node.topology)) {
           node.topology.forEach((topo) => {
@@ -156,13 +177,47 @@ export function LeftSidebar({
         .filter((node) => node.layer && selectedLayers.has(node.layer))
         .map((node) => node.id);
     } else {
-      filteredNodeIds = currentData.nodes
-        .filter((node) => {
-          if (!node.topology || !Array.isArray(node.topology)) return false;
-          return node.topology.some((topo) => topo.layer && selectedLayers.has(topo.layer));
-        })
-        .map((node) => node.id);
+      // For Ruas Rekap: support both new structure and old structure
+      const nodeIdsFromNodes = new Set<string>();
+      const nodeIdsFromEdges = new Set<string>();
+
+      // Check nodes with layer field (new structure)
+      currentData.nodes.forEach((node) => {
+        if (node.layer && selectedLayers.has(node.layer)) {
+          nodeIdsFromNodes.add(node.id);
+        }
+      });
+
+      // Check edges (new structure)
+      if (currentData.edges && Array.isArray(currentData.edges)) {
+        currentData.edges.forEach((edge: any) => {
+          const edgeLayer = edge.layer_list || edge.layer;
+          if (edgeLayer && selectedLayers.has(edgeLayer)) {
+            // Include both source and target nodes
+            if (edge.source) nodeIdsFromEdges.add(edge.source);
+            if (edge.target) nodeIdsFromEdges.add(edge.target);
+          }
+        });
+      }
+
+      // Fallback: Check topology (old structure)
+      currentData.nodes.forEach((node) => {
+        if (node.topology && Array.isArray(node.topology)) {
+          const hasMatchingLayer = node.topology.some((topo) => topo.layer && selectedLayers.has(topo.layer));
+          if (hasMatchingLayer) {
+            nodeIdsFromNodes.add(node.id);
+          }
+        }
+      });
+
+      // Combine all node IDs
+      filteredNodeIds = Array.from(new Set([...nodeIdsFromNodes, ...nodeIdsFromEdges]));
     }
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[Filter] Layer: ${selectedLayer}, Selected Layers: ${selectedLayers.size}, Filtered Nodes: ${filteredNodeIds.length}`,
+    );
     onFilterRuasNodes(filteredNodeIds);
   }, [selectedLayers, showRuasFilter, selectedLayer, ruasRekapData, ruasRekapStoData, onFilterRuasNodes]);
 
@@ -772,7 +827,7 @@ export function LeftSidebar({
                   >
                     <option value="none">Pilih Layer</option>
                     <option value="ruasrekap" disabled={!ruasRekapDataAvailable}>
-                      Ruas Rekap TERA {" "}
+                      Ruas Rekap TERA{" "}
                       {!ruasRekapDataAvailable ? "(Loading...)" : `(${ruasRekapData?.nodes?.length || 0} nodes)`}
                     </option>
                     <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
@@ -889,14 +944,44 @@ export function LeftSidebar({
                         const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
                         // Count nodes that have this layer
                         let nodeCount = 0;
+                        let edgeCount = 0;
                         if (currentData) {
                           if (selectedLayer === "ruasrekapsto") {
                             nodeCount = currentData.nodes.filter((node) => node.layer === layer).length;
                           } else {
-                            nodeCount = currentData.nodes.filter((node) => {
-                              if (!node.topology || !Array.isArray(node.topology)) return false;
-                              return node.topology.some((topo) => topo.layer === layer);
-                            }).length;
+                            // For Ruas Rekap: support both new structure and old structure
+                            const nodeIdsSet = new Set<string>();
+
+                            // Count nodes with layer field (new structure)
+                            currentData.nodes.forEach((node) => {
+                              if (node.layer === layer) {
+                                nodeIdsSet.add(node.id);
+                              }
+                            });
+
+                            // Count nodes connected by edges with this layer (new structure)
+                            if (currentData.edges && Array.isArray(currentData.edges)) {
+                              currentData.edges.forEach((edge: any) => {
+                                const edgeLayer = edge.layer_list || edge.layer;
+                                if (edgeLayer === layer) {
+                                  if (edge.source) nodeIdsSet.add(edge.source);
+                                  if (edge.target) nodeIdsSet.add(edge.target);
+                                  edgeCount++;
+                                }
+                              });
+                            }
+
+                            // Fallback: Count from topology (old structure)
+                            currentData.nodes.forEach((node) => {
+                              if (node.topology && Array.isArray(node.topology)) {
+                                const hasMatchingLayer = node.topology.some((topo) => topo.layer === layer);
+                                if (hasMatchingLayer) {
+                                  nodeIdsSet.add(node.id);
+                                }
+                              }
+                            });
+
+                            nodeCount = nodeIdsSet.size;
                           }
                         }
 
@@ -969,6 +1054,7 @@ export function LeftSidebar({
                               }}
                             >
                               {nodeCount} nodes
+                              {edgeCount > 0 && ` • ${edgeCount} edges`}
                             </span>
                           </label>
                         );
@@ -986,7 +1072,11 @@ export function LeftSidebar({
                       fontWeight: "500",
                     }}
                   >
-                    {selectedLayers.size === 0 ? "All layers visible" : `${selectedLayers.size} layer(s) selected`}
+                    {selectedLayers.size === 0
+                      ? "No layers selected - showing none"
+                      : selectedLayers.size === getUniqueLayers.length
+                        ? "All layers selected"
+                        : `${selectedLayers.size} of ${getUniqueLayers.length} layer(s) selected`}
                   </div>
                 </div>
               )}

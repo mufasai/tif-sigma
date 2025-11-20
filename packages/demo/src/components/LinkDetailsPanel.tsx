@@ -1,4 +1,4 @@
-import { X, Activity, TrendingUp, AlertTriangle, Zap, Clock, Signal } from 'lucide-react';
+import { X, Activity, TrendingUp, AlertTriangle, Zap, Clock, Signal, Network } from 'lucide-react';
 import React from 'react';
 
 interface LinkDetailsPanelProps {
@@ -15,6 +15,8 @@ interface LinkDetailsPanelProps {
     type?: string;
   };
   onClose: () => void;
+  onShowTopology?: () => void;
+  isTopologyVisible?: boolean;
 }
 
 interface LinkDetail {
@@ -34,16 +36,16 @@ interface LinkDetail {
 const generateLinkDetails = (connection: LinkDetailsPanelProps['connection']): LinkDetail[] => {
   const baseLatency = connection.latency || Math.random() * 20 + 5;
   const basePacketLoss = connection.packetLoss || Math.random() * 0.1;
-  
+
   // Generate multiple physical links for redundancy
   const linkCount = connection.linkCount || (connection.bandwidth_mbps && connection.bandwidth_mbps >= 5000 ? 2 : 1);
   const links: LinkDetail[] = [];
-  
+
   for (let i = 1; i <= linkCount; i++) {
     const capacityPerLink = Math.floor((connection.bandwidth_mbps || 1000) / linkCount);
     const utilizationVariance = Math.random() * 20 - 10; // ±10% variance
     const utilization = Math.max(0, Math.min(100, (connection.utilization || 50) + utilizationVariance));
-    
+
     links.push({
       id: i,
       linkName: `${connection.from}-PE${i}--${connection.to}-PE${i}`,
@@ -57,11 +59,11 @@ const generateLinkDetails = (connection: LinkDetailsPanelProps['connection']): L
       qos: connection.type === 'L1_BACKBONE' ? 'Premium' : connection.type === 'L2_AGGREGATION' ? 'Business' : 'Standard'
     });
   }
-  
+
   return links;
 };
 
-export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps) {
+export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopologyVisible = false }: LinkDetailsPanelProps) {
   const linkDetails = generateLinkDetails(connection);
   const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
   const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
@@ -70,7 +72,7 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
   const avgPacketLoss = linkDetails.reduce((sum, l) => sum + parseFloat(l.packetLoss), 0) / linkDetails.length;
 
   const NeumorphicCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-    <div 
+    <div
       className={className}
       style={{
         background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.8))',
@@ -85,8 +87,8 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
     </div>
   );
 
-  const StatCard = ({ icon: Icon, label, value, color }: { 
-    icon: React.ElementType; label: string; value: string; color: string 
+  const StatCard = ({ icon: Icon, label, value, color }: {
+    icon: React.ElementType; label: string; value: string; color: string
   }) => (
     <div style={{
       background: `linear-gradient(135deg, ${color}15, ${color}08)`,
@@ -136,65 +138,104 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
         {/* Header */}
-        <div style={{ 
-          padding: '20px', 
-          borderBottom: '1px solid rgba(0,0,0,0.05)' 
+        <div style={{
+          padding: '20px',
+          borderBottom: '1px solid rgba(0,0,0,0.05)'
         }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'flex-start', 
-            justifyContent: 'space-between', 
-            marginBottom: '16px' 
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            marginBottom: '16px'
           }}>
             <div>
-              <h3 style={{ 
-                margin: '0 0 4px 0', 
-                fontSize: '18px', 
-                fontWeight: '700', 
-                color: '#1F2937' 
+              <h3 style={{
+                margin: '0 0 4px 0',
+                fontSize: '18px',
+                fontWeight: '700',
+                color: '#1F2937'
               }}>
                 Link Analytics
               </h3>
-              <p style={{ 
-                margin: 0, 
-                fontSize: '13px', 
+              <p style={{
+                margin: 0,
+                fontSize: '13px',
                 color: '#6B7280',
                 fontWeight: '500'
               }}>
                 {connection.description || `${connection.from} → ${connection.to}`}
               </p>
             </div>
-            <button
-              onClick={onClose}
-              style={{
-                background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.7))',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '8px',
-                padding: '8px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-              }}
-            >
-              <X style={{ width: '16px', height: '16px', color: '#6B7280' }} />
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {onShowTopology && (
+                <button
+                  onClick={onShowTopology}
+                  style={{
+                    background: isTopologyVisible
+                      ? 'linear-gradient(145deg, rgba(239, 68, 68, 0.9), rgba(220, 38, 38, 0.8))'
+                      : 'linear-gradient(145deg, rgba(147, 51, 234, 0.9), rgba(126, 34, 206, 0.8))',
+                    border: isTopologyVisible
+                      ? '1px solid rgba(239, 68, 68, 0.3)'
+                      : '1px solid rgba(147, 51, 234, 0.3)',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'scale(1.05)';
+                    e.currentTarget.style.boxShadow = isTopologyVisible
+                      ? '0 4px 12px rgba(239, 68, 68, 0.3)'
+                      : '0 4px 12px rgba(147, 51, 234, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                  }}
+                  title={isTopologyVisible ? "Hide Network Topology" : "Show Network Topology"}
+                >
+                  <Network style={{ width: '16px', height: '16px', color: '#FFFFFF' }} />
+                  <span style={{ fontSize: '12px', color: '#FFFFFF', fontWeight: '600' }}>
+                    {isTopologyVisible ? 'Hide' : 'Show'} Topology
+                  </span>
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                style={{
+                  background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.7))',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '8px',
+                  padding: '8px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                }}
+              >
+                <X style={{ width: '16px', height: '16px', color: '#6B7280' }} />
+              </button>
+            </div>
           </div>
 
           {/* Summary Stats Grid */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(4, 1fr)', 
-            gap: '12px' 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, 1fr)',
+            gap: '12px'
           }}>
             <StatCard
               icon={Zap}
@@ -224,21 +265,21 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
         </div>
 
         {/* Content */}
-        <div style={{ 
-          flex: 1, 
-          overflow: 'auto', 
+        <div style={{
+          flex: 1,
+          overflow: 'auto',
           padding: '20px',
           display: 'flex',
           flexDirection: 'column',
           gap: '20px'
         }}>
-          
+
           {/* Individual Links Table */}
           <NeumorphicCard>
-            <h4 style={{ 
-              margin: '0 0 16px 0', 
-              fontSize: '16px', 
-              fontWeight: '600', 
+            <h4 style={{
+              margin: '0 0 16px 0',
+              fontSize: '16px',
+              fontWeight: '600',
               color: '#1F2937',
               display: 'flex',
               alignItems: 'center',
@@ -247,7 +288,7 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
               <Signal style={{ width: '16px', height: '16px', color: '#4F46E5' }} />
               Physical Links
             </h4>
-            
+
             <div style={{ overflow: 'hidden', borderRadius: '12px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -260,7 +301,7 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
                 </thead>
                 <tbody>
                   {linkDetails.map((link, index) => (
-                    <tr key={link.id} style={{ 
+                    <tr key={link.id} style={{
                       borderTop: index > 0 ? '1px solid #E5E7EB' : 'none',
                       background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent'
                     }}>
@@ -325,10 +366,10 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
 
           {/* Performance Metrics */}
           <NeumorphicCard>
-            <h4 style={{ 
-              margin: '0 0 16px 0', 
-              fontSize: '16px', 
-              fontWeight: '600', 
+            <h4 style={{
+              margin: '0 0 16px 0',
+              fontSize: '16px',
+              fontWeight: '600',
               color: '#1F2937',
               display: 'flex',
               alignItems: 'center',
@@ -337,11 +378,11 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
               <TrendingUp style={{ width: '16px', height: '16px', color: '#10B981' }} />
               Performance Metrics
             </h4>
-            
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(2, 1fr)', 
-              gap: '16px' 
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '16px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Average Latency</span>
@@ -382,10 +423,10 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
 
           {/* Alerts Section */}
           <NeumorphicCard>
-            <h4 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '16px', 
-              fontWeight: '600', 
+            <h4 style={{
+              margin: '0 0 12px 0',
+              fontSize: '16px',
+              fontWeight: '600',
               color: '#1F2937',
               display: 'flex',
               alignItems: 'center',
@@ -394,7 +435,7 @@ export function LinkDetailsPanel({ connection, onClose }: LinkDetailsPanelProps)
               <AlertTriangle style={{ width: '16px', height: '16px', color: '#F59E0B' }} />
               Recent Alerts
             </h4>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {avgUtilization > 80 && (
                 <div style={{

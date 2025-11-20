@@ -3,12 +3,25 @@ import React, { useState, useRef, useEffect } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 
+interface TopologyLink {
+  source: string;
+  target: string;
+  source_label?: string;
+  target_label?: string;
+  total_capacity?: number;
+  source_capacity_total?: number;
+  avg_utilization?: number;
+}
+
 interface TopologyDrawerProps {
   connection: {
     from: string;
     to: string;
-    nodeData?: any;
-    topology?: any[];
+    nodeData?: {
+      id?: string;
+      label?: string;
+    };
+    topology?: TopologyLink[];
   };
   onClose: () => void;
 }
@@ -90,59 +103,88 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       const nodeSet = new Set<string>();
       const nodePositions = new Map<string, { x: number; y: number }>();
 
-      // Collect all unique nodes
-      connection.topology.forEach((link: any) => {
-        nodeSet.add(link.source);
-        nodeSet.add(link.target);
+      // Collect all unique nodes from edges
+      connection.topology.forEach((link) => {
+        const sourceId = link.source;
+        const targetId = link.target;
+        nodeSet.add(sourceId);
+        nodeSet.add(targetId);
       });
 
       // Calculate positions in a circular layout
       const nodes = Array.from(nodeSet);
-      const centerNode = connection.from;
+      const centerNodeId = connection.nodeData?.id || connection.from;
       const radius = 3;
-      
+
       // Add center node (the selected node)
-      graph.addNode(centerNode, {
-        label: centerNode,
+      const centerLabel = connection.nodeData?.label || connection.from;
+      graph.addNode(centerNodeId, {
+        label: centerLabel,
         x: 0,
         y: 0,
         size: 25,
         color: '#9333ea',
       });
-      nodePositions.set(centerNode, { x: 0, y: 0 });
+      nodePositions.set(centerNodeId, { x: 0, y: 0 });
 
       // Add other nodes in a circle around the center
-      const otherNodes = nodes.filter(n => n !== centerNode);
-      otherNodes.forEach((node, index) => {
+      const otherNodes = nodes.filter(n => n !== centerNodeId);
+      otherNodes.forEach((nodeId, index) => {
         const angle = (2 * Math.PI * index) / otherNodes.length;
         const x = radius * Math.cos(angle);
         const y = radius * Math.sin(angle);
-        
-        graph.addNode(node, {
-          label: node,
+
+        // Find node label from topology data
+        const edgeWithNode = connection.topology?.find((link) =>
+          link.source === nodeId || link.target === nodeId
+        );
+        const nodeLabel = nodeId === edgeWithNode?.source
+          ? (edgeWithNode?.source_label || nodeId)
+          : (edgeWithNode?.target_label || nodeId);
+
+        graph.addNode(nodeId, {
+          label: nodeLabel,
           x,
           y,
           size: 18,
           color: '#3b82f6',
         });
-        nodePositions.set(node, { x, y });
+        nodePositions.set(nodeId, { x, y });
       });
 
       // Add edges from topology data
-      connection.topology.forEach((link: any) => {
-        const sourceCapacity = link.source_capacity_total || 0;
-        const capacityLabel = sourceCapacity > 0 ? `${(sourceCapacity / 1000).toFixed(1)}G` : '';
+      connection.topology.forEach((link) => {
+        const totalCapacity = link.total_capacity || link.source_capacity_total || 0;
+        const capacityGbps = totalCapacity / 1000000000;
+        const capacityLabel = capacityGbps > 0 ? `${capacityGbps.toFixed(1)}G` : '';
 
         try {
           if (graph.hasNode(link.source) && graph.hasNode(link.target)) {
+            // Calculate edge size based on capacity
+            const edgeSize = Math.max(2, Math.min(8, capacityGbps / 10));
+
+            // Calculate edge color based on utilization or capacity
+            let edgeColor = '#8b5cf6';
+            if (link.avg_utilization !== undefined) {
+              const util = link.avg_utilization;
+              if (util > 80) edgeColor = '#ef4444'; // Red for high utilization
+              else if (util > 60) edgeColor = '#f59e0b'; // Orange for medium
+              else if (util > 40) edgeColor = '#eab308'; // Yellow
+              else edgeColor = '#10b981'; // Green for low
+            } else if (capacityGbps > 100) {
+              edgeColor = '#10b981'; // Green for high capacity
+            } else if (capacityGbps > 50) {
+              edgeColor = '#3b82f6'; // Blue for medium
+            }
+
             graph.addEdge(link.source, link.target, {
-              size: Math.max(2, Math.min(6, sourceCapacity / 1000)),
-              color: sourceCapacity > 10000 ? '#10b981' : sourceCapacity > 5000 ? '#3b82f6' : '#8b5cf6',
+              size: edgeSize,
+              color: edgeColor,
               label: capacityLabel,
               type: 'line',
             });
           }
-        } catch (error) {
+        } catch (_error) {
           // Edge might already exist, skip
         }
       });
@@ -458,10 +500,10 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
             height: '400px',
             position: 'relative',
           }}>
-            <div 
-              ref={sigmaContainerRef} 
-              style={{ 
-                width: '100%', 
+            <div
+              ref={sigmaContainerRef}
+              style={{
+                width: '100%',
                 height: '100%',
                 borderRadius: '8px',
               }}
