@@ -86,7 +86,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [airportsData, setAirportsData] = useState<SerializedGraph | null>(null);
   const [showSirkitLayer, setShowSirkitLayer] = useState(false);
   const [sirkitData, setSirkitData] = useState<Record<string, string>[]>([]);
-  const [selectedLayer, setSelectedLayer] = useState<string>("ruasrekapsto");
+  const [selectedLayer, setSelectedLayer] = useState<string>("ruasrekap");
   const [showMultilayerMap, setShowMultilayerMap] = useState(false);
   const [multilayerMapData, setMultilayerMapData] = useState<FeatureCollection | null>(null);
   const [showNodeEdgesLayer, setShowNodeEdgesLayer] = useState(false);
@@ -98,6 +98,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [showRuasRekapStoLayer, setShowRuasRekapStoLayer] = useState(false);
   const [ruasRekapStoData, setRuasRekapStoData] = useState<{ nodes: any[]; edges: any[] } | null>(null);
   const [filteredRuasStoNodes, setFilteredRuasStoNodes] = useState<string[]>([]);
+  const [isRuasRekapInitialLoad, setIsRuasRekapInitialLoad] = useState(true);
+  const [isRuasRekapStoInitialLoad, setIsRuasRekapStoInitialLoad] = useState(true);
   // Reserved for future topology features (matching App.tsx structure)
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
@@ -340,12 +342,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     const loadRuasRekapData = async () => {
       try {
-        const response = await fetch("/ruas_rekap.json");
+        const response = await fetch("/ruas_rekap_new.json");
         if (!response.ok) {
           throw new Error("Failed to load ruas rekap data");
         }
         const data = await response.json();
         setRuasRekapData(data);
+        setIsRuasRekapInitialLoad(true); // Reset initial load flag
         // eslint-disable-next-line no-console
         console.log("Ruas rekap data loaded:", data);
 
@@ -373,20 +376,22 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
         const data = await response.json();
         setRuasRekapStoData(data);
+        setIsRuasRekapStoInitialLoad(true); // Reset initial load flag
         // eslint-disable-next-line no-console
         console.log("Ruas rekap STO data loaded:", data);
 
-        // Initialize filteredRuasStoNodes with all node IDs
+        // Initialize filteredRuasStoNodes with all node IDs (for STO)
+        // Extract all unique node IDs from topology
         if (data?.nodes && Array.isArray(data.nodes)) {
           const allNodeIds = data.nodes.map((node: any) => node.id);
           setFilteredRuasStoNodes(allNodeIds);
         }
 
-        // Set default layer to ruas_rekap_sto after loading
-        setTimeout(() => {
-          setSelectedLayer("ruasrekapsto");
-          setShowRuasRekapStoLayer(true);
-        }, 1000);
+        // Don't auto-set layer here, let the default state handle it
+        // setTimeout(() => {
+        //   setSelectedLayer("ruasrekapsto");
+        //   setShowRuasRekapStoLayer(true);
+        // }, 1000);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error("Error loading ruas rekap STO data:", error);
@@ -400,6 +405,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     if (mapLoaded && ruasRekapData && showRuasRekapLayer && map.current) {
       addRuasRekapLayer();
+      if (isRuasRekapInitialLoad) {
+        setIsRuasRekapInitialLoad(false);
+      }
     }
   }, [mapLoaded, ruasRekapData, showRuasRekapLayer, filteredRuasNodes]);
 
@@ -407,6 +415,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     if (mapLoaded && ruasRekapStoData && showRuasRekapStoLayer && map.current) {
       addRuasRekapStoLayer();
+      if (isRuasRekapStoInitialLoad) {
+        setIsRuasRekapStoInitialLoad(false);
+      }
     }
   }, [mapLoaded, ruasRekapStoData, showRuasRekapStoLayer, filteredRuasStoNodes]);
 
@@ -1224,9 +1235,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           });
           setShowLinkDetails(true);
 
-          // Set topology connection for TopologyDrawer
+          // Set topology connection for TopologyDrawer (default hidden)
           setTopologyConnection({ from, to });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -1499,10 +1511,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Show topology drawer for the node
+          // Show topology drawer for the node (default hidden, will show when button clicked)
           const hostname = props?.node || props?.hostname || "Node";
           setTopologyConnection({ from: hostname, to: "Network" });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -1612,66 +1625,114 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       }
 
       // Filter nodes based on filteredRuasNodes
-      // If filteredRuasNodes is empty array, show all nodes (default behavior)
+      // If filteredRuasNodes is empty array, show NO nodes (no layers selected)
       // If filteredRuasNodes has items, show only those nodes
-      const nodesToShow =
-        filteredRuasNodes.length > 0
-          ? ruasRekapData.nodes.filter((node) => filteredRuasNodes.includes(node.id))
-          : ruasRekapData.nodes;
+      const nodesToShow = ruasRekapData.nodes.filter((node) => filteredRuasNodes.includes(node.id));
 
       // Create a set of node IDs for quick lookup
       const nodeIdsSet = new Set(nodesToShow.map((n) => n.id));
 
-      // Create GeoJSON features for edges (lines) from topology
+      // Create GeoJSON features for edges (lines) from edges array
       const lineFeatures: any[] = [];
-      nodesToShow.forEach((node) => {
-        if (node.topology && Array.isArray(node.topology)) {
-          node.topology.forEach((topo: any) => {
-            // Only show edges where both source and target are in filtered nodes
-            if (nodeIdsSet.has(topo.source) && nodeIdsSet.has(topo.target)) {
-              // Create curved line coordinates
-              const curvedCoords = createCurvedLine(
-                topo.source_lon,
-                topo.source_lat,
-                topo.target_lon,
-                topo.target_lat,
-                0.2, // curvature factor
-              );
 
-              lineFeatures.push({
-                type: "Feature" as const,
-                properties: {
-                  id: topo.ruas || `${topo.source}_to_${topo.target}`,
-                  ruas: topo.ruas || "N/A",
-                  source: topo.source,
-                  target: topo.target,
-                  capacity: topo.capacity || 0,
-                  layer: topo.layer || "N/A",
-                  traffic_95_in: topo.traffic_95_in || 0,
-                  traffic_95_out: topo.traffic_95_out || 0,
-                  traffic_max_in: topo.traffic_max_in || 0,
-                  traffic_max_out: topo.traffic_max_out || 0,
-                  utilization: topo.utilization || 0,
-                },
-                geometry: {
-                  type: "LineString" as const,
-                  coordinates: curvedCoords,
-                },
-              });
-            }
-          });
-        }
-      });
+      // Support both old structure (node.topology) and new structure (edges array at root)
+      if (ruasRekapData.edges && Array.isArray(ruasRekapData.edges)) {
+        // New structure: edges at root level
+        ruasRekapData.edges.forEach((edge: any) => {
+          // Only show edges where both source and target are in filtered nodes
+          if (nodeIdsSet.has(edge.source) && nodeIdsSet.has(edge.target)) {
+            // Create curved line coordinates using edge source/target coordinates
+            const curvedCoords = createCurvedLine(
+              edge.source_lon,
+              edge.source_lat,
+              edge.target_lon,
+              edge.target_lat,
+              0.2, // curvature factor
+            );
+
+            lineFeatures.push({
+              type: "Feature" as const,
+              properties: {
+                id: edge.id || edge.ruas_list || `${edge.source}_to_${edge.target}`,
+                ruas: edge.ruas_list || "N/A",
+                source: edge.source,
+                target: edge.target,
+                source_label: edge.source_label || edge.source,
+                target_label: edge.target_label || edge.target,
+                capacity: edge.total_capacity || edge.capacity || 0,
+                layer: edge.layer_list || edge.layer || "N/A",
+                traffic_95_in: edge.total_traffic_95_in || edge.traffic_95_in || 0,
+                traffic_95_out: edge.total_traffic_95_out || edge.traffic_95_out || 0,
+                traffic_max_in: edge.total_traffic_max_in || edge.traffic_max_in || 0,
+                traffic_max_out: edge.total_traffic_max_out || edge.traffic_max_out || 0,
+                utilization: edge.avg_utilization || edge.utilization || 0,
+                link_count: edge.link_count || 1,
+                details: JSON.stringify(edge.details || []),
+              },
+              geometry: {
+                type: "LineString" as const,
+                coordinates: curvedCoords,
+              },
+            });
+          }
+        });
+      } else {
+        // Old structure: topology inside nodes (fallback for backward compatibility)
+        nodesToShow.forEach((node) => {
+          if (node.topology && Array.isArray(node.topology)) {
+            node.topology.forEach((topo: any) => {
+              // Only show edges where both source and target are in filtered nodes
+              if (nodeIdsSet.has(topo.source) && nodeIdsSet.has(topo.target)) {
+                // Create curved line coordinates
+                const curvedCoords = createCurvedLine(
+                  topo.source_lon,
+                  topo.source_lat,
+                  topo.target_lon,
+                  topo.target_lat,
+                  0.2, // curvature factor
+                );
+
+                lineFeatures.push({
+                  type: "Feature" as const,
+                  properties: {
+                    id: topo.ruas || `${topo.source}_to_${topo.target}`,
+                    ruas: topo.ruas || "N/A",
+                    source: topo.source,
+                    target: topo.target,
+                    capacity: topo.capacity || 0,
+                    layer: topo.layer || "N/A",
+                    traffic_95_in: topo.traffic_95_in || 0,
+                    traffic_95_out: topo.traffic_95_out || 0,
+                    traffic_max_in: topo.traffic_max_in || 0,
+                    traffic_max_out: topo.traffic_max_out || 0,
+                    utilization: topo.utilization || 0,
+                    details: JSON.stringify([]),
+                  },
+                  geometry: {
+                    type: "LineString" as const,
+                    coordinates: curvedCoords,
+                  },
+                });
+              }
+            });
+          }
+        });
+      }
 
       // Create GeoJSON features for nodes (points)
-      const pointFeatures = nodesToShow.map((node) => ({
+      // Create point features from nodes
+      const pointFeatures = nodesToShow.map((node: any) => ({
         type: "Feature" as const,
         properties: {
           id: node.id,
           label: node.label,
-          size: node.size || 3,
-          topologyCount: node.topology ? node.topology.length : 0,
-          topology: JSON.stringify(node.topology || []),
+          size: node.size,
+          layer: node.layer,
+          platform: node.platform,
+          reg: node.reg,
+          witel: node.witel,
+          types: node.types,
+          details: JSON.stringify(node.details || []),
         },
         geometry: {
           type: "Point" as const,
@@ -1733,59 +1794,77 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points
+      // Add click handler for points - Show LinkDetailsPanel and NodeDetailDialog
       map.current.on("click", "ruasrekap-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
+          const nodeId = props?.id;
+          const nodeLabel = props?.label || props?.id || "Node";
+
+          // Find all edges connected to this node
+          const connectedEdges = ruasRekapData?.edges?.filter(
+            (edge: any) => edge.source === nodeId || edge.target === nodeId
+          ) || [];
+
+          // Show popup with node info and connected edges count
           const coordinates = e.lngLat;
-
-          // Parse topology data
-          let topologyData: any[] | undefined;
-          try {
-            if (props?.topology) {
-              const parsed = typeof props.topology === "string" ? JSON.parse(props.topology) : props.topology;
-              topologyData = Array.isArray(parsed) ? parsed : undefined;
-            }
-          } catch (_error) {
-            /* empty */
-          }
-
-          const topologyCount = props?.topologyCount || 0;
-          const topologyInfo =
-            topologyCount > 0
-              ? `<div style="margin-top: 8px; padding: 6px; background: rgba(59, 130, 246, 0.1); border-radius: 4px; font-size: 11px; color: #3B82F6;">
-                <strong>Topology:</strong> ${topologyCount} connections available
-              </div>`
-              : "";
-
           new maplibregl.Popup()
             .setLngLat(coordinates)
             .setHTML(
               `
               <div style="font-size: 12px; padding: 8px; max-width: 280px;">
-                <strong style="font-size: 14px; color: #3B82F6;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
+                <strong style="font-size: 14px; color: #3B82F6;">📡 ${nodeLabel}</strong><br/>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #ddd;"/>
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px;">
                   <strong>Node ID:</strong> <span>${props?.id || "N/A"}</span>
-                  <strong>Label:</strong> <span>${props?.label || "N/A"}</span>
-                  <strong>Size:</strong> <span>${props?.size || "N/A"}</span>
+                  <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
+                  <strong>Platform:</strong> <span>${props?.platform || "N/A"}</span>
+                  <strong>Region:</strong> <span>REG ${props?.reg || "N/A"}</span>
+                  <strong>Witel:</strong> <span>${props?.witel || "N/A"}</span>
                 </div>
-                ${topologyInfo}
+                <div style="margin-top: 8px; padding: 6px; background: rgba(59, 130, 246, 0.1); border-radius: 4px; font-size: 11px; color: #3B82F6; text-align: center;">
+                  <strong>🔗 ${connectedEdges.length} connected link${connectedEdges.length !== 1 ? 's' : ''}</strong>
+                </div>
+                <div style="margin-top: 6px; font-size: 10px; color: #6B7280; text-align: center; font-style: italic;">
+                  Viewing node details and topology →
+                </div>
               </div>
             `,
             )
             .addTo(map.current!);
 
-          // Show topology drawer with topology data
-          const hostname = props?.label || props?.id || "Node";
+          // Show LinkDetailsPanel with first edge if available
+          if (connectedEdges.length > 0) {
+            const firstEdge = connectedEdges[0];
+            const maxTraffic = Math.max(firstEdge.total_traffic_95_in || 0, firstEdge.total_traffic_95_out || 0);
+            const utilization =
+              firstEdge.total_capacity > 0 ? ((maxTraffic / firstEdge.total_capacity) * 100) : 0;
+
+            setSelectedLink({
+              from: firstEdge.source_label || firstEdge.source,
+              to: firstEdge.target_label || firstEdge.target,
+              description: `${nodeLabel} - ${connectedEdges.length} link${connectedEdges.length !== 1 ? 's' : ''}`,
+              bandwidth_mbps: firstEdge.total_capacity ? firstEdge.total_capacity / 1000000 : 10000,
+              utilization: utilization,
+              latency: 5 + Math.random() * 10,
+              packetLoss: Math.random() * 0.1,
+              linkCount: connectedEdges.length,
+              totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
+              type: firstEdge.layer_list || "L2_AGGREGATION",
+            });
+            setShowLinkDetails(true);
+          }
+
+          // Set topology connection with connected edges data (default hidden)
           setTopologyConnection({
-            from: hostname,
+            from: nodeLabel,
             to: "Network",
             nodeData: props,
-            topology: topologyData || undefined,
+            topology: connectedEdges,
           });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -1796,9 +1875,35 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const props = feature.properties;
           const coordinates = e.lngLat;
 
-          const from = props?.source || "Node A";
-          const to = props?.target || "Node B";
+          const from = props?.source_label || props?.source || "Node A";
+          const to = props?.target_label || props?.target || "Node B";
           const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+          const linkCount = props?.link_count || 1;
+
+          // Parse details if available
+          let detailsData = [];
+          try {
+            if (props?.details && typeof props.details === "string") {
+              detailsData = JSON.parse(props.details);
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
+          const detailsCount = detailsData?.length || 0;
+          const detailsInfo =
+            detailsCount > 0
+              ? `<div style="margin-top: 8px; padding: 6px; background: rgba(37, 99, 235, 0.1); border-radius: 4px; font-size: 11px; color: #2563EB;">
+                <strong>Details:</strong> ${detailsCount} physical link(s) available
+              </div>`
+              : "";
+
+          const linkCountInfo =
+            linkCount > 1
+              ? `<div style="margin-top: 4px; padding: 4px; background: rgba(139, 92, 246, 0.1); border-radius: 3px; font-size: 11px; color: #8B5CF6;">
+                <strong>🔗 Aggregated Links:</strong> ${linkCount}
+              </div>`
+              : "";
 
           new maplibregl.Popup()
             .setLngLat(coordinates)
@@ -1815,6 +1920,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Traffic In:</strong> <span>${props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
                   <strong>Traffic Out:</strong> <span>${props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
                 </div>
+                ${linkCountInfo}
+                ${detailsInfo}
               </div>
             `,
             )
@@ -1829,15 +1936,21 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             utilization: props?.utilization || 0,
             latency: 5 + Math.random() * 10,
             packetLoss: Math.random() * 0.1,
-            linkCount: 1,
+            linkCount: linkCount,
             totalCapacity: `${capacityGbps}G`,
             type: "L2_AGGREGATION",
           });
           setShowLinkDetails(true);
 
-          // Set topology connection
-          setTopologyConnection({ from, to });
-          setShowTopologyDrawer(true);
+          // Set topology connection with details (default hidden)
+          setTopologyConnection({
+            from,
+            to,
+            nodeData: props,
+            topology: detailsData?.length > 0 ? detailsData : undefined,
+          });
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -1919,6 +2032,17 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             utilizationColor = "#F1C40F"; // Yellow
           }
 
+          // Get labels and link count from new structure
+          const sourceLabel = props?.source_label || props?.source || "N/A";
+          const targetLabel = props?.target_label || props?.target || "N/A";
+          const linkCount = props?.link_count || 1;
+          const linkCountInfo =
+            linkCount > 1
+              ? `<div style="margin-top: 6px; padding: 4px; background: rgba(139, 92, 246, 0.1); border-radius: 3px; font-size: 10px; color: #8B5CF6; text-align: center;">
+                <strong>🔗 ${linkCount} physical links aggregated</strong>
+              </div>`
+              : "";
+
           hoverPopup
             .setLngLat(coordinates)
             .setHTML(
@@ -1927,8 +2051,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 <strong style="font-size: 13px; color: #8B5CF6;">🔗 ${props?.ruas || "Connection"}</strong><br/>
                 <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
-                  <strong>Source:</strong> <span style="color: #3B82F6;">${props?.source || "N/A"}</span>
-                  <strong>Target:</strong> <span style="color: #10B981;">${props?.target || "N/A"}</span>
+                  <strong>Source:</strong> <span style="color: #3B82F6;">${sourceLabel}</span>
+                  <strong>Target:</strong> <span style="color: #10B981;">${targetLabel}</span>
                   <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
                   <strong>Capacity:</strong> <span style="color: #8B5CF6; font-weight: 600;">${capacityGbps} Gbps</span>
                   <strong>Traffic In (95%):</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
@@ -1937,6 +2061,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
                   <strong>Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
                 </div>
+                ${linkCountInfo}
                 <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
                   Click for details
                 </div>
@@ -1985,6 +2110,17 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             utilizationColor = "#F1C40F"; // Yellow
           }
 
+          // Get labels and link count from new structure
+          const sourceLabel = props?.source_label || props?.source || "N/A";
+          const targetLabel = props?.target_label || props?.target || "N/A";
+          const linkCount = props?.link_count || 1;
+          const linkCountInfo =
+            linkCount > 1
+              ? `<div style="margin-top: 6px; padding: 4px; background: rgba(139, 92, 246, 0.1); border-radius: 3px; font-size: 10px; color: #8B5CF6; text-align: center;">
+                <strong>🔗 ${linkCount} physical links aggregated</strong>
+              </div>`
+              : "";
+
           hoverPopup
             .setLngLat(coordinates)
             .setHTML(
@@ -1993,8 +2129,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 <strong style="font-size: 13px; color: #8B5CF6;">🔗 ${props?.ruas || "Connection"}</strong><br/>
                 <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
-                  <strong>Source:</strong> <span style="color: #3B82F6;">${props?.source || "N/A"}</span>
-                  <strong>Target:</strong> <span style="color: #10B981;">${props?.target || "N/A"}</span>
+                  <strong>Source:</strong> <span style="color: #3B82F6;">${sourceLabel}</span>
+                  <strong>Target:</strong> <span style="color: #10B981;">${targetLabel}</span>
                   <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
                   <strong>Capacity:</strong> <span style="color: #8B5CF6; font-weight: 600;">${capacityGbps} Gbps</span>
                   <strong>Traffic In (95%):</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
@@ -2003,6 +2139,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
                   <strong>Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
                 </div>
+                ${linkCountInfo}
                 <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
                   Click for details
                 </div>
@@ -2019,7 +2156,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       });
 
       // Calculate bounds to fit all nodes
-      if (nodesToShow.length > 0) {
+      // Fit map to bounds only on initial load, not on filter changes
+      if (nodesToShow.length > 0 && isRuasRekapInitialLoad) {
         const lngs = nodesToShow.map((n) => n.x);
         const lats = nodesToShow.map((n) => n.y);
         const bounds = {
@@ -2043,7 +2181,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       }
 
       // eslint-disable-next-line no-console
-      console.log("Ruas rekap layer added successfully");
+      console.log(
+        `Ruas rekap layer ${isRuasRekapInitialLoad ? "added" : "updated"} successfully - ${nodesToShow.length} nodes, ${lineFeatures.length} edges`,
+      );
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("Error adding ruas rekap layer:", error);
@@ -2112,10 +2252,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       }
 
       // Filter nodes based on selected layers
-      const nodesToShow =
-        filteredRuasStoNodes.length > 0
-          ? ruasRekapStoData.nodes.filter((node: any) => filteredRuasStoNodes.includes(node.id))
-          : ruasRekapStoData.nodes;
+      // If filteredRuasStoNodes is empty array, show NO nodes (no layers selected)
+      const nodesToShow = ruasRekapStoData.nodes.filter((node: any) => filteredRuasStoNodes.includes(node.id));
 
       const nodeIdsSet = new Set(nodesToShow.map((node: any) => node.id));
 
@@ -2123,22 +2261,30 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       const lineFeatures = ruasRekapStoData.edges
         .filter((edge: any) => nodeIdsSet.has(edge.source) && nodeIdsSet.has(edge.target))
         .map((edge: any) => {
-          const curvedCoords = createCurvedLine(edge.source_lon, edge.source_lat, edge.target_lon, edge.target_lat, 0.2);
+          const curvedCoords = createCurvedLine(
+            edge.source_lon,
+            edge.source_lat,
+            edge.target_lon,
+            edge.target_lat,
+            0.2,
+          );
 
           return {
             type: "Feature" as const,
             properties: {
               id: edge.id,
-              ruas: edge.ruas_list,
+              ruas: edge.ruas_list || edge.ruas,
               source: edge.source,
               target: edge.target,
-              capacity: edge.total_capacity,
-              layer: edge.layer_list,
-              traffic_95_in: edge.total_traffic_95_in,
-              traffic_95_out: edge.total_traffic_95_out,
-              traffic_max_in: edge.total_traffic_max_in,
-              traffic_max_out: edge.total_traffic_max_out,
-              utilization: edge.avg_utilization,
+              capacity: edge.total_capacity || edge.capacity,
+              layer: edge.layer_list || edge.layer,
+              traffic_95_in: edge.total_traffic_95_in || edge.traffic_95_in,
+              traffic_95_out: edge.total_traffic_95_out || edge.traffic_95_out,
+              traffic_max_in: edge.total_traffic_max_in || edge.traffic_max_in,
+              traffic_max_out: edge.total_traffic_max_out || edge.traffic_max_out,
+              utilization: edge.avg_utilization || edge.utilization,
+              link_count: edge.link_count || 1,
+              details: JSON.stringify(edge.details || []),
             },
             geometry: {
               type: "LineString" as const,
@@ -2159,6 +2305,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           reg: node.reg || "N/A",
           witel: node.witel || "N/A",
           types: node.types || "N/A",
+          details: JSON.stringify(node.details || []),
         },
         geometry: {
           type: "Point" as const,
@@ -2220,29 +2367,31 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points
+      // Add click handler for points - Show LinkDetailsPanel and NodeDetailDialog
       map.current.on("click", "ruas-rekap-sto-points", (e) => {
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
           const coordinates = e.lngLat;
+          const nodeId = props?.id;
+          const nodeLabel = props?.label || props?.id || "Node";
 
           // Remove hover popup when clicking
           hoverPopup.remove();
 
-          // Count edges connected to this node
+          // Find all edges connected to this node
           const connectedEdges = ruasRekapStoData.edges.filter(
-            (edge: any) => edge.source === props?.id || edge.target === props?.id
+            (edge: any) => edge.source === nodeId || edge.target === nodeId,
           );
-          const connectionCount = connectedEdges.length;
 
+          // Show popup for quick info
           new maplibregl.Popup()
             .setLngLat(coordinates)
             .setHTML(
               `
               <div style="font-size: 12px; padding: 10px; max-width: 300px;">
-                <strong style="font-size: 15px; color: #10B981;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
-                <div style="font-size: 10px; color: #6B7280; margin-top: 2px;">STO ID: ${props?.id || "N/A"}</div>
+                <strong style="font-size: 15px; color: #10B981;">📡 ${nodeLabel}</strong><br/>
+                <div style="font-size: 10px; color: #6B7280; margin-top: 2px;">STO ID: ${nodeId || "N/A"}</div>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;"/>
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 11px;">
                   <strong style="color: #6B7280;">Layer:</strong> <span style="color: #1F2937;">${props?.layer || "N/A"}</span>
@@ -2251,19 +2400,48 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong style="color: #6B7280;">Region:</strong> <span style="color: #1F2937;">REG ${props?.reg || "N/A"}</span>
                   <strong style="color: #6B7280;">Witel:</strong> <span style="color: #1F2937;">${props?.witel || "N/A"}</span>
                 </div>
-                ${connectionCount > 0 ? `<div style="margin-top: 10px; padding: 8px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border-left: 3px solid #10B981; border-radius: 4px; font-size: 11px;"><strong style="color: #059669;">🔗 Connections:</strong> <span style="color: #10B981; font-weight: 600;">${connectionCount} links</span></div>` : ""}
+                <div style="margin-top: 10px; padding: 8px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05)); border-left: 3px solid #10B981; border-radius: 4px; font-size: 11px; text-align: center;">
+                  <strong style="color: #059669;">🔗 ${connectedEdges.length} connected link${connectedEdges.length !== 1 ? 's' : ''}</strong>
+                </div>
+                <div style="margin-top: 6px; font-size: 10px; color: #6B7280; text-align: center; font-style: italic;">
+                  Viewing node details and topology →
+                </div>
               </div>
             `,
             )
             .addTo(map.current!);
 
-          // Show topology drawer
+          // Show LinkDetailsPanel with first edge if available
+          if (connectedEdges.length > 0) {
+            const firstEdge = connectedEdges[0];
+            const maxTraffic = Math.max(firstEdge.total_traffic_95_in || 0, firstEdge.total_traffic_95_out || 0);
+            const utilization =
+              firstEdge.total_capacity > 0 ? ((maxTraffic / firstEdge.total_capacity) * 100) : 0;
+
+            setSelectedLink({
+              from: firstEdge.source_label || firstEdge.source,
+              to: firstEdge.target_label || firstEdge.target,
+              description: `${nodeLabel} - ${connectedEdges.length} link${connectedEdges.length !== 1 ? 's' : ''}`,
+              bandwidth_mbps: firstEdge.total_capacity ? firstEdge.total_capacity / 1000000 : 10000,
+              utilization: utilization,
+              latency: 5 + Math.random() * 10,
+              packetLoss: Math.random() * 0.1,
+              linkCount: connectedEdges.length,
+              totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
+              type: firstEdge.layer_list || "L2_AGGREGATION",
+            });
+            setShowLinkDetails(true);
+          }
+
+          // Set topology connection with connected edges data (default hidden)
           setTopologyConnection({
-            from: props?.label || props?.id || "Node",
+            from: nodeLabel,
             to: "Network",
             nodeData: props,
+            topology: connectedEdges,
           });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -2321,21 +2499,21 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 <strong style="font-size: 15px; color: #059669;">🔗 Link Connection</strong><br/>
                 <div style="font-size: 10px; color: #6B7280; margin-top: 2px;">${props?.ruas || "N/A"}</div>
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;"/>
-                
+
                 <div style="display: grid; gap: 6px; font-size: 11px;">
                   <div style="padding: 6px; background: rgba(59, 130, 246, 0.05); border-radius: 4px;">
                     <strong style="color: #3B82F6;">📍 Source:</strong> <span style="color: #1F2937; font-weight: 600;">${fromLabel}</span>
                     <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">ID: ${fromId}</div>
                   </div>
-                  
+
                   <div style="padding: 6px; background: rgba(16, 185, 129, 0.05); border-radius: 4px;">
                     <strong style="color: #10B981;">📍 Target:</strong> <span style="color: #1F2937; font-weight: 600;">${toLabel}</span>
                     <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">ID: ${toId}</div>
                   </div>
                 </div>
-                
+
                 <hr style="margin: 8px 0; border: none; border-top: 1px solid #e5e7eb;"/>
-                
+
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 11px;">
                   <strong style="color: #6B7280;">Layer:</strong> <span style="color: #1F2937;">${props?.layer || "N/A"}</span>
                   <strong style="color: #6B7280;">Link Count:</strong> <span style="color: #1F2937;">${props?.link_count || 1}</span>
@@ -2345,9 +2523,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong style="color: #6B7280;">Max Traffic In:</strong> <span style="color: #6366F1;">${trafficMaxInGbps} Gbps</span>
                   <strong style="color: #6B7280;">Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
                 </div>
-                
+
                 <div style="margin-top: 10px; padding: 8px; background: ${utilizationBg}; border-left: 3px solid ${utilizationColor}; border-radius: 4px;">
-                  <strong style="color: #6B7280; font-size: 11px;">Utilization:</strong> 
+                  <strong style="color: #6B7280; font-size: 11px;">Utilization:</strong>
                   <span style="color: ${utilizationColor}; font-weight: 700; font-size: 13px; margin-left: 4px;">${utilizationPercent}%</span>
                 </div>
               </div>
@@ -2370,9 +2548,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           });
           setShowLinkDetails(true);
 
-          // Set topology connection
+          // Set topology connection (default hidden)
           setTopologyConnection({ from: fromLabel, to: toLabel });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -2395,7 +2574,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           // Count connections
           const connectedEdges = ruasRekapStoData.edges.filter(
-            (edge: any) => edge.source === props?.id || edge.target === props?.id
+            (edge: any) => edge.source === props?.id || edge.target === props?.id,
           );
           const connectionCount = connectedEdges.length;
 
@@ -2571,9 +2750,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       });
 
       // Calculate bounds to fit all nodes
-      if (nodesToShow.length > 0) {
-        const lngs = nodesToShow.map((n: any) => n.x);
-        const lats = nodesToShow.map((n: any) => n.y);
+      // Fit bounds only on initial load, not on filter changes
+      if (nodesToShow.length > 0 && isRuasRekapStoInitialLoad) {
+        const lngs = nodesToShow.map((n) => n.x);
+        const lats = nodesToShow.map((n) => n.y);
         const bounds = {
           minLng: Math.min(...lngs),
           maxLng: Math.max(...lngs),
@@ -2595,7 +2775,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       }
 
       // eslint-disable-next-line no-console
-      console.log("Ruas rekap STO layer added successfully");
+      console.log(
+        `Ruas rekap STO layer ${isRuasRekapStoInitialLoad ? "added" : "updated"} successfully - ${nodesToShow.length} nodes, ${lineFeatures.length} edges`,
+      );
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("Error adding ruas rekap STO layer:", error);
@@ -2901,9 +3083,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           });
           setShowLinkDetails(true);
 
-          // Set topology connection for TopologyDrawer
+          // Set topology connection for TopologyDrawer (default hidden)
           setTopologyConnection({ from, to });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -3206,7 +3389,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
-          // Show topology drawer for the node with topology data
+          // Set topology connection for the node with topology data (default hidden)
           const hostname = props?.hostname || props?.label || props?.id || "Node";
           setTopologyConnection({
             from: hostname,
@@ -3214,7 +3397,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             nodeData: props,
             topology: topologyData || undefined,
           });
-          setShowTopologyDrawer(true);
+          // Don't auto-show topology drawer, let user click the button
+          // setShowTopologyDrawer(true);
         }
       });
 
@@ -3283,12 +3467,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           });
           setShowLinkDetails(true);
 
-          // Set topology connection for TopologyDrawer
-          // setTopologyConnection({
-          //   from,
-          //   to,
-          //   nodeData: props
-          // });
+          // Set topology connection for TopologyDrawer (default hidden)
+          setTopologyConnection({
+            from,
+            to,
+            nodeData: props
+          });
+          // Don't auto-show topology drawer, let user click the button
           // setShowTopologyDrawer(true);
         }
       });
@@ -3556,15 +3741,16 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   // Load default layer when map and data are ready
   useEffect(() => {
     const loadDefaultLayer = async () => {
-      if (mapLoaded && nodeEdgesData && selectedLayer === "nodeedges" && !showNodeEdgesLayer) {
+      // Load Ruas Rekap TERA as default layer
+      if (mapLoaded && ruasRekapData && selectedLayer === "ruasrekap" && !showRuasRekapLayer) {
         // Small delay to ensure map is fully initialized
         await new Promise((resolve) => setTimeout(resolve, 500));
-        setShowNodeEdgesLayer(true);
+        setShowRuasRekapLayer(true);
       }
     };
 
     loadDefaultLayer();
-  }, [mapLoaded, nodeEdgesData]);
+  }, [mapLoaded, ruasRekapData, selectedLayer, showRuasRekapLayer]);
 
   // Update map when nodes change
   useEffect(() => {
@@ -4389,6 +4575,11 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             setShowLinkDetails(false);
             setSelectedLink(null);
           }}
+          onShowTopology={() => {
+            // Toggle topology drawer when button is clicked
+            setShowTopologyDrawer(!showTopologyDrawer);
+          }}
+          isTopologyVisible={showTopologyDrawer}
         />
       )}
 
