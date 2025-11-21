@@ -118,6 +118,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     linkCount?: number;
     totalCapacity?: string;
     type?: string;
+    nodeData?: any; // Add nodeData to pass all node properties
+    linkDetails?: Array<Record<string, any>>; // Add linkDetails to pass detailed link data
   } | null>(null);
   const [showTopologyDrawer, setShowTopologyDrawer] = useState(false);
   const [topologyConnection, setTopologyConnection] = useState<{
@@ -338,7 +340,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     loadMultiNodeEdges();
   }, []);
 
-  // Load ruas rekap data from ruas_rekap.json
+  // Load ruas rekap data from ruas_rekap_new.json
   useEffect(() => {
     const loadRuasRekapData = async () => {
       try {
@@ -1204,9 +1206,25 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
-          // Show topology drawer for the node
+          // Show LinkDetailsPanel with node data
           const hostname = props?.hostname || "Node";
-          setTopologyConnection({ from: hostname, to: "Network" });
+          setSelectedLink({
+            from: hostname,
+            to: "Network",
+            description: `${hostname} - Capacity Node`,
+            bandwidth_mbps: 10000,
+            utilization: 70 + Math.random() * 20,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: 1,
+            totalCapacity: "10G",
+            type: "CAPACITY",
+            nodeData: props, // Pass all node properties
+          });
+          setShowLinkDetails(true);
+
+          // Show topology drawer for the node
+          setTopologyConnection({ from: hostname, to: "Network", nodeData: props });
           // setShowTopologyDrawer(true);
         }
       });
@@ -1511,9 +1529,25 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const feature = e.features[0];
           const props = feature.properties;
 
-          // Show topology drawer for the node (default hidden, will show when button clicked)
+          // Show LinkDetailsPanel with node data
           const hostname = props?.node || props?.hostname || "Node";
-          setTopologyConnection({ from: hostname, to: "Network" });
+          setSelectedLink({
+            from: hostname,
+            to: "Network",
+            description: `${hostname} - Sirkit Node`,
+            bandwidth_mbps: 10000,
+            utilization: 70 + Math.random() * 20,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: 1,
+            totalCapacity: "10G",
+            type: "SIRKIT",
+            nodeData: props, // Pass all node properties
+          });
+          setShowLinkDetails(true);
+
+          // Show topology drawer for the node (default hidden, will show when button clicked)
+          setTopologyConnection({ from: hostname, to: "Network", nodeData: props });
           // Don't auto-show topology drawer, let user click the button
           // setShowTopologyDrawer(true);
         }
@@ -1752,7 +1786,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add line glow layer (bottom layer)
+      // Add line glow layer (bottom layer) - Make it thicker for easier clicking
       map.current.addLayer({
         id: "ruasrekap-lines-glow",
         type: "line",
@@ -1760,13 +1794,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
           "line-color": "#3B82F6",
-          "line-width": 4,
+          "line-width": 8, // Increased from 4 to 8 for easier clicking
           "line-opacity": 0.15,
           "line-blur": 2,
         },
       });
 
-      // Add line layer
+      // Add line layer - Make it thicker for easier clicking
       map.current.addLayer({
         id: "ruasrekap-lines",
         type: "line",
@@ -1774,8 +1808,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
           "line-color": "#2563EB",
-          "line-width": 0.5,
-          "line-opacity": 0.3,
+          "line-width": 2, // Increased from 0.5 to 2 for easier clicking
+          "line-opacity": 0.5, // Increased opacity from 0.3 to 0.5
         },
       });
 
@@ -1802,6 +1836,16 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const nodeId = props?.id;
           const nodeLabel = props?.label || props?.id || "Node";
 
+          // Parse node details from properties
+          let nodeDetails = [];
+          try {
+            if (props?.details && typeof props.details === "string") {
+              nodeDetails = JSON.parse(props.details);
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
           // Find all edges connected to this node
           const connectedEdges = ruasRekapData?.edges?.filter(
             (edge: any) => edge.source === nodeId || edge.target === nodeId
@@ -1826,6 +1870,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 <div style="margin-top: 8px; padding: 6px; background: rgba(59, 130, 246, 0.1); border-radius: 4px; font-size: 11px; color: #3B82F6; text-align: center;">
                   <strong>🔗 ${connectedEdges.length} connected link${connectedEdges.length !== 1 ? 's' : ''}</strong>
                 </div>
+                ${nodeDetails.length > 0 ? `<div style="margin-top: 6px; padding: 6px; background: rgba(139, 92, 246, 0.1); border-radius: 4px; font-size: 11px; color: #8B5CF6; text-align: center;">
+                  <strong>📋 ${nodeDetails.length} node detail${nodeDetails.length !== 1 ? 's' : ''}</strong>
+                </div>` : ''}
                 <div style="margin-top: 6px; font-size: 10px; color: #6B7280; text-align: center; font-style: italic;">
                   Viewing node details and topology →
                 </div>
@@ -1834,8 +1881,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
-          // Show LinkDetailsPanel with first edge if available
-          if (connectedEdges.length > 0) {
+          // Show LinkDetailsPanel with node details if available, otherwise show edge info
+          if (nodeDetails.length > 0) {
+            setSelectedLink({
+              from: nodeLabel,
+              to: "Network",
+              description: `${nodeLabel} - Node Details`,
+              bandwidth_mbps: 10000,
+              utilization: 0,
+              latency: 5 + Math.random() * 10,
+              packetLoss: Math.random() * 0.1,
+              linkCount: nodeDetails.length,
+              totalCapacity: "N/A",
+              type: props?.layer || "NODE",
+              nodeData: props,
+              linkDetails: nodeDetails, // Pass node details
+            });
+            setShowLinkDetails(true);
+          } else if (connectedEdges.length > 0) {
             const firstEdge = connectedEdges[0];
             const maxTraffic = Math.max(firstEdge.total_traffic_95_in || 0, firstEdge.total_traffic_95_out || 0);
             const utilization =
@@ -1852,6 +1915,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               linkCount: connectedEdges.length,
               totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
               type: firstEdge.layer_list || "L2_AGGREGATION",
+              nodeData: props, // Pass all node properties
             });
             setShowLinkDetails(true);
           }
@@ -1868,12 +1932,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
       });
 
-      // Add click handler for lines
-      map.current.on("click", "ruasrekap-lines", (e) => {
+      // Shared handler function for edge clicks
+      const handleEdgeClick = (e: maplibregl.MapLayerMouseEvent) => {
+        // eslint-disable-next-line no-console
+        console.log('Edge click detected!', e);
+        
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
           const coordinates = e.lngLat;
+
+          // eslint-disable-next-line no-console
+          console.log('Edge feature:', feature);
+          // eslint-disable-next-line no-console
+          console.log('Edge properties:', props);
 
           const from = props?.source_label || props?.source || "Node A";
           const to = props?.target_label || props?.target || "Node B";
@@ -1885,9 +1957,15 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           try {
             if (props?.details && typeof props.details === "string") {
               detailsData = JSON.parse(props.details);
+              // eslint-disable-next-line no-console
+              console.log('Edge clicked - Details parsed:', detailsData);
+            } else {
+              // eslint-disable-next-line no-console
+              console.log('No details found or details is not a string:', props?.details);
             }
-          } catch (_error) {
-            /* empty */
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('Error parsing edge details:', error);
           }
 
           const detailsCount = detailsData?.length || 0;
@@ -1927,19 +2005,40 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
-          // Set link details for LinkDetailsPanel
+          // Calculate utilization from traffic data
+          const maxTraffic = Math.max(
+            props?.traffic_95_in || 0,
+            props?.traffic_95_out || 0
+          );
+          const utilization = props?.capacity && props.capacity > 0
+            ? ((maxTraffic / props.capacity) * 100)
+            : 0;
+
+          // eslint-disable-next-line no-console
+          console.log('Setting link details with:', {
+            from,
+            to,
+            linkDetails: detailsData,
+            detailsCount: detailsData.length
+          });
+
+          // Set link details for LinkDetailsPanel with edge details
           setSelectedLink({
             from,
             to,
             description: props?.ruas || `${from} → ${to}`,
             bandwidth_mbps: props?.capacity ? props.capacity / 1000000 : 10000,
-            utilization: props?.utilization || 0,
+            utilization: utilization,
             latency: 5 + Math.random() * 10,
             packetLoss: Math.random() * 0.1,
             linkCount: linkCount,
             totalCapacity: `${capacityGbps}G`,
-            type: "L2_AGGREGATION",
+            type: props?.layer || "L2_AGGREGATION",
+            linkDetails: detailsData?.length > 0 ? detailsData : undefined, // Pass detailed link data from edge
           });
+          
+          // eslint-disable-next-line no-console
+          console.log('Calling setShowLinkDetails(true)');
           setShowLinkDetails(true);
 
           // Set topology connection with details (default hidden)
@@ -1949,10 +2048,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             nodeData: props,
             topology: detailsData?.length > 0 ? detailsData : undefined,
           });
-          // Don't auto-show topology drawer, let user click the button
-          // setShowTopologyDrawer(true);
         }
-      });
+      };
+
+      // Add click handler for lines (thin line)
+      map.current.on("click", "ruasrekap-lines", handleEdgeClick);
+      
+      // Add click handler for glow lines (thicker, easier to click)
+      map.current.on("click", "ruasrekap-lines-glow", handleEdgeClick);
 
       // Create a popup for hover
       const hoverPopup = new maplibregl.Popup({
@@ -2429,6 +2532,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               linkCount: connectedEdges.length,
               totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
               type: firstEdge.layer_list || "L2_AGGREGATION",
+              nodeData: props, // Pass all node properties
             });
             setShowLinkDetails(true);
           }
@@ -2491,6 +2595,16 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             utilizationBg = "rgba(241, 196, 15, 0.1)";
           }
 
+          // Parse details if available
+          let detailsData = [];
+          try {
+            if (props?.details && typeof props.details === "string") {
+              detailsData = JSON.parse(props.details);
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
           new maplibregl.Popup()
             .setLngLat(coordinates)
             .setHTML(
@@ -2545,6 +2659,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             linkCount: props?.link_count || 1,
             totalCapacity: `${capacityGbps}G`,
             type: props?.layer || "L2_AGGREGATION",
+            linkDetails: detailsData?.length > 0 ? detailsData : undefined, // Pass detailed link data
           });
           setShowLinkDetails(true);
 
@@ -3389,8 +3504,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
-          // Set topology connection for the node with topology data (default hidden)
+          // Show LinkDetailsPanel with node data
           const hostname = props?.hostname || props?.label || props?.id || "Node";
+          setSelectedLink({
+            from: hostname,
+            to: "Network",
+            description: `${hostname} - Node Edges`,
+            bandwidth_mbps: 10000,
+            utilization: 70 + Math.random() * 20,
+            latency: 5 + Math.random() * 10,
+            packetLoss: Math.random() * 0.1,
+            linkCount: topologyCount || 1,
+            totalCapacity: "10G",
+            type: "NODE_EDGES",
+            nodeData: props, // Pass all node properties
+          });
+          setShowLinkDetails(true);
+
+          // Set topology connection for the node with topology data (default hidden)
           setTopologyConnection({
             from: hostname,
             to: "Network",
@@ -4568,20 +4699,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       {showToast && <Toast message={toastMessage} type={toastType} onClose={() => setShowToast(false)} />}
 
       {/* Link Details Panel */}
-      {showLinkDetails && selectedLink && (
-        <LinkDetailsPanel
-          connection={selectedLink}
-          onClose={() => {
-            setShowLinkDetails(false);
-            setSelectedLink(null);
-          }}
-          onShowTopology={() => {
-            // Toggle topology drawer when button is clicked
-            setShowTopologyDrawer(!showTopologyDrawer);
-          }}
-          isTopologyVisible={showTopologyDrawer}
-        />
-      )}
+      {(() => {
+        // eslint-disable-next-line no-console
+        console.log('LinkDetailsPanel render check:', { showLinkDetails, selectedLink });
+        return showLinkDetails && selectedLink && (
+          <LinkDetailsPanel
+            connection={selectedLink}
+            onClose={() => {
+              setShowLinkDetails(false);
+              setSelectedLink(null);
+            }}
+            onShowTopology={() => {
+              // Toggle topology drawer when button is clicked
+              setShowTopologyDrawer(!showTopologyDrawer);
+            }}
+            isTopologyVisible={showTopologyDrawer}
+          />
+        );
+      })()}
 
       {/* Topology Drawer */}
       {showTopologyDrawer && topologyConnection && (
