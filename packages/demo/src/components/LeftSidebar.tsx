@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   FiBarChart2,
   FiChevronLeft,
@@ -53,6 +54,8 @@ interface LeftSidebarProps {
   ruasRekapStoDataAvailable?: boolean;
   ruasRekapStoData?: { nodes: NodeItem[]; edges: unknown[] } | null;
   isLayerLoading?: boolean;
+  selectedRuasLayer?: string;
+  onRuasLayerChange?: (layer: string) => void;
 }
 
 export function LeftSidebar({
@@ -74,16 +77,96 @@ export function LeftSidebar({
   onFilterRuasNodes,
   ruasRekapStoData = null,
   isLayerLoading = false,
+  selectedRuasLayer = "tera-tera",
+  onRuasLayerChange,
 }: LeftSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   // Ruas Rekap filtering states
   const [showRuasFilter, setShowRuasFilter] = useState(false);
-  const [ruasSearchQuery, setRuasSearchQuery] = useState("");
+  const [ruasLayerSearchQuery, setRuasLayerSearchQuery] = useState(""); 
   const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
-  const [selectAllLayers, setSelectAllLayers] = useState(true);
+  // const [setSelectAllLayers] = useState(true);
   const isInitializingRef = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef<number>(0);
 
+  // Handler for search input - stable reference with focus preservation
+  const handleRuasLayerSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const cursorPosition = e.target.selectionStart;
+    
+    // Use flushSync to ensure state update happens synchronously
+    flushSync(() => {
+      setRuasLayerSearchQuery(value);
+    });
+    
+    // Restore focus and cursor position after state update
+    requestAnimationFrame(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        if (cursorPosition !== null) {
+          searchInputRef.current.setSelectionRange(cursorPosition, cursorPosition);
+        }
+      }
+    });
+  }, []);
+
+  // Handler for layer selection - preserve scroll position
+  const handleLayerClick = useCallback((layerValue: string) => {
+    // Save current scroll position
+    if (listScrollRef.current) {
+      scrollPositionRef.current = listScrollRef.current.scrollTop;
+    }
+    
+    // Change layer
+    if (onRuasLayerChange) {
+      onRuasLayerChange(layerValue);
+    }
+  }, [onRuasLayerChange]);
+
+  // Restore scroll position after render
+  React.useEffect(() => {
+    if (listScrollRef.current && scrollPositionRef.current > 0) {
+      listScrollRef.current.scrollTop = scrollPositionRef.current;
+    }
+  });
+
+  // Filtered ruas layers based on search query
+  const filteredRuasLayers = React.useMemo(() => {
+    const allLayers = [
+      // TERA Layers
+      { value: "tera-tera", label: "TERA - TERA", color: "#3B82F6" },
+      { value: "tera-metro", label: "TERA - METRO", color: "#10B981" },
+      { value: "tera-swc", label: "TERA - SWC", color: "#F59E0B" },
+      { value: "tera-pevoice", label: "TERA - PEVOICE", color: "#8B5CF6" },
+      { value: "tera-pemobile", label: "TERA - PEMOBILE", color: "#EC4899" },
+      { value: "tera-pehsi", label: "TERA - PEHSI", color: "#14B8A6" },
+      { value: "tera-pehdc", label: "TERA - PEHDC", color: "#F97316" },
+      { value: "tera-cgw", label: "TERA - CGW", color: "#6366F1" },
+      // METRO Layers
+      { value: "trunk_all_metro_metro", label: "METRO - METRO", color: "#06B6D4" },
+      { value: "trunk_all_metro_spine", label: "METRO - SPINE", color: "#8B5CF6" },
+      { value: "trunk_all_metro_dcn", label: "METRO - DCN", color: "#EC4899" },
+      { value: "trunk_all_metro_bras", label: "METRO - BRAS", color: "#F59E0B" },
+      { value: "trunk_all_metro_cdn", label: "METRO - CDN", color: "#10B981" },
+      { value: "trunk_all_metro_cndc", label: "METRO - CNDC", color: "#EF4444" },
+      { value: "trunk_all_metro_wac", label: "METRO - WAC", color: "#84CC16" },
+      { value: "trunk_all_metro_wag", label: "METRO - WAG", color: "#A855F7" },
+      { value: "trunk_all_metro_pedatin", label: "METRO - PEDATIN", color: "#F43F5E" },
+      { value: "trunk_all_metro_pehsi", label: "METRO - PEHSI", color: "#0EA5E9" },
+      { value: "trunk_all_metro_pevoice", label: "METRO - PEVOICE", color: "#22C55E" },
+      { value: "trunk_all_metro_rantsel", label: "METRO - RANTSEL", color: "#14B8A6" },
+      { value: "trunk_all_metro_twamp", label: "METRO - TWAMP", color: "#F97316" },
+      { value: "trunk_all_metro_starlink", label: "METRO - STARLINK", color: "#6366F1" },
+    ];
+    
+    const searchLower = ruasLayerSearchQuery.toLowerCase().trim();
+    return searchLower 
+      ? allLayers.filter((layer) => layer.label.toLowerCase().includes(searchLower))
+      : allLayers;
+  }, [ruasLayerSearchQuery]);
 
   // Get unique layers from ruas rekap data (support both datasets)
   const getUniqueLayers = React.useMemo(() => {
@@ -140,7 +223,7 @@ export function LeftSidebar({
       setShowRuasFilter(true);
       const allLayers = new Set(getUniqueLayers);
       setSelectedLayers(allLayers);
-      setSelectAllLayers(true);
+      // setSelectAllLayers(true);
       setTimeout(() => {
         isInitializingRef.current = false;
       }, 100);
@@ -149,7 +232,7 @@ export function LeftSidebar({
       setShowRuasFilter(true);
       const allLayers = new Set(getUniqueLayers);
       setSelectedLayers(allLayers);
-      setSelectAllLayers(true);
+      // setSelectAllLayers(true);
       setTimeout(() => {
         isInitializingRef.current = false;
       }, 100);
@@ -827,7 +910,7 @@ export function LeftSidebar({
                   >
                     <option value="none">Pilih Layer</option>
                     <option value="ruasrekap" disabled={!ruasRekapDataAvailable}>
-                      Ruas Rekap TERA{" "}
+                      Ruas Rekap {" "}
                       {!ruasRekapDataAvailable ? "(Loading...)" : `(${ruasRekapData?.nodes?.length || 0} nodes)`}
                     </option>
                     {/* <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
@@ -847,8 +930,8 @@ export function LeftSidebar({
                 </div>
               )}
 
-              {/* Ruas Rekap Filter Panel - Filter by Layer */}
-              {showRuasFilter && (ruasRekapData || ruasRekapStoData) && onFilterRuasNodes && (
+              {/* Ruas Layer Selection - Only for ruasrekap */}
+              {selectedLayer === "ruasrekap" && onRuasLayerChange && ruasRekapData && (
                 <div
                   style={{
                     marginTop: "12px",
@@ -873,213 +956,148 @@ export function LeftSidebar({
                       style={{
                         fontSize: "12px",
                         fontWeight: "600",
-                        color: "#3B82F6",
+                        color: "#8B5CF6",
                       }}
                     >
-                      Filter by Layer ({getUniqueLayers.length} layers)
+                      Ruas Layer Selection
                     </label>
-                    <button
-                      onClick={() => {
-                        const newSelectAll = !selectAllLayers;
-                        setSelectAllLayers(newSelectAll);
-                        if (newSelectAll) {
-                          // Select All: show all nodes by selecting all layers
-                          const allLayers = new Set(getUniqueLayers);
-                          setSelectedLayers(allLayers);
-                        } else {
-                          // Deselect All: hide all nodes by clearing selection
-                          setSelectedLayers(new Set());
-                        }
-                      }}
-                      style={{
-                        fontSize: "10px",
-                        padding: "4px 8px",
-                        borderRadius: "6px",
-                        border: "none",
-                        background: selectAllLayers
-                          ? "linear-gradient(135deg, #3B82F6, #2563EB)"
-                          : "linear-gradient(145deg, rgba(255,255,255,0.8), rgba(240,240,240,0.6))",
-                        color: selectAllLayers ? "#FFFFFF" : "#374151",
-                        cursor: "pointer",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {selectAllLayers ? "Deselect All" : "Select All"}
-                    </button>
                   </div>
-                  {/* Search Input */}
+
+                  {/* Search Filter */}
                   <input
+                    ref={searchInputRef}
                     type="text"
-                    placeholder="Search layers..."
-                    value={ruasSearchQuery}
-                    onChange={(e) => setRuasSearchQuery(e.target.value)}
+                    placeholder="Search ruas layers..."
+                    value={ruasLayerSearchQuery}
+                    onChange={handleRuasLayerSearchChange}
+                    autoComplete="off"
+                    autoFocus={false}
                     style={{
                       width: "100%",
                       padding: "8px 10px",
                       borderRadius: "8px",
-                      border: "1px solid rgba(59,130,246,0.2)",
+                      border: "1px solid rgba(139, 92, 246, 0.2)",
                       background: "rgba(255,255,255,0.9)",
                       fontSize: "12px",
                       fontWeight: "400",
                       color: "#374151",
                       boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
                       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      marginBottom: "8px",
+                      outline: "none",
                     }}
                   />
-                  {/* Scrollable Checkbox List */}
+
+                  {/* Filterable List Container */}
                   <div
+                    ref={listScrollRef}
                     style={{
-                      maxHeight: "200px",
+                      border: "1px solid rgba(139, 92, 246, 0.2)",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      background: "rgba(255,255,255,0.5)",
+                      maxHeight: "300px",
                       overflowY: "auto",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "4px",
-                      padding: "4px 0",
                     }}
                   >
-                    {getUniqueLayers
-                      .filter((layer) => layer.toLowerCase().includes(ruasSearchQuery.toLowerCase()))
-                      .map((layer) => {
-                        const isSelected = selectedLayers.has(layer);
-                        const currentData = selectedLayer === "ruasrekapsto" ? ruasRekapStoData : ruasRekapData;
-                        // Count nodes that have this layer
-                        let nodeCount = 0;
-                        let edgeCount = 0;
-                        if (currentData) {
-                          if (selectedLayer === "ruasrekapsto") {
-                            nodeCount = currentData.nodes.filter((node) => node.layer === layer).length;
-                          } else {
-                            // For Ruas Rekap: support both new structure and old structure
-                            const nodeIdsSet = new Set<string>();
-
-                            // Count nodes with layer field (new structure)
-                            currentData.nodes.forEach((node) => {
-                              if (node.layer === layer) {
-                                nodeIdsSet.add(node.id);
-                              }
-                            });
-
-                            // Count nodes connected by edges with this layer (new structure)
-                            if (currentData.edges && Array.isArray(currentData.edges)) {
-                              currentData.edges.forEach((edge: any) => {
-                                const edgeLayer = edge.layer_list || edge.layer;
-                                if (edgeLayer === layer) {
-                                  if (edge.source) nodeIdsSet.add(edge.source);
-                                  if (edge.target) nodeIdsSet.add(edge.target);
-                                  edgeCount++;
-                                }
-                              });
+                    {filteredRuasLayers.length > 0 ? (
+                      filteredRuasLayers.map((layer) => (
+                        <div
+                          key={layer.value}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleLayerClick(layer.value);
+                          }}
+                          onMouseDown={(e) => {
+                            // Prevent focus loss from search input
+                            e.preventDefault();
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            color: "#374151",
+                            background:
+                              selectedRuasLayer === layer.value
+                                ? "rgba(139, 92, 246, 0.15)"
+                                : "transparent",
+                            borderBottom: "1px solid rgba(139, 92, 246, 0.08)",
+                            transition: "background 0.2s ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (selectedRuasLayer !== layer.value) {
+                              e.currentTarget.style.background = "rgba(139, 92, 246, 0.08)";
                             }
-
-                            // Fallback: Count from topology (old structure)
-                            currentData.nodes.forEach((node) => {
-                              if (node.topology && Array.isArray(node.topology)) {
-                                const hasMatchingLayer = node.topology.some((topo) => topo.layer === layer);
-                                if (hasMatchingLayer) {
-                                  nodeIdsSet.add(node.id);
-                                }
-                              }
-                            });
-
-                            nodeCount = nodeIdsSet.size;
-                          }
-                        }
-
-                        return (
-                          <label
-                            key={layer}
+                          }}
+                          onMouseLeave={(e) => {
+                            if (selectedRuasLayer !== layer.value) {
+                              e.currentTarget.style.background = "transparent";
+                            }
+                          }}
+                        >
+                          {/* Color Indicator */}
+                          <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                              padding: "6px 8px",
-                              borderRadius: "6px",
-                              cursor: "pointer",
-                              fontSize: "11px",
-                              fontWeight: "500",
-                              color: "#374151",
-                              background: isSelected ? "rgba(59,130,246,0.1)" : "transparent",
-                              transition: "all 0.2s ease",
+                              width: "16px",
+                              height: "16px",
+                              borderRadius: "4px",
+                              background: layer.color,
+                              boxShadow: `0 2px 4px ${layer.color}40`,
+                              border: "1px solid rgba(255,255,255,0.5)",
+                              flexShrink: 0,
                             }}
-                            onMouseEnter={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.background = "rgba(59,130,246,0.05)";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isSelected) {
-                                e.currentTarget.style.background = "transparent";
-                              }
+                          />
+                          
+                          {/* Layer Label */}
+                          <span
+                            style={{
+                              flex: 1,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontWeight: selectedRuasLayer === layer.value ? "600" : "500",
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                const newSelected = new Set(selectedLayers);
-                                if (e.target.checked) {
-                                  newSelected.add(layer);
-                                } else {
-                                  newSelected.delete(layer);
-                                }
-                                setSelectedLayers(newSelected);
+                            {layer.label}
+                          </span>
 
-                                // Update select all state
-                                if (newSelected.size === 0) {
-                                  setSelectAllLayers(false);
-                                } else if (newSelected.size === getUniqueLayers.length) {
-                                  setSelectAllLayers(true);
-                                } else {
-                                  setSelectAllLayers(false);
-                                }
-                              }}
+                          {/* Selected Indicator */}
+                          {selectedRuasLayer === layer.value && (
+                            <div
                               style={{
-                                width: "14px",
-                                height: "14px",
-                                accentColor: "#3B82F6",
+                                width: "6px",
+                                height: "6px",
+                                borderRadius: "50%",
+                                background: layer.color,
+                                boxShadow: `0 0 8px ${layer.color}80`,
+                                flexShrink: 0,
                               }}
                             />
-                            <span
-                              style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                            >
-                              {layer}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "9px",
-                                color: "#6B7280",
-                                background: "rgba(107,114,128,0.1)",
-                                padding: "2px 4px",
-                                borderRadius: "4px",
-                              }}
-                            >
-                              {nodeCount} nodes
-                              {edgeCount > 0 && ` • ${edgeCount} edges`}
-                            </span>
-                          </label>
-                        );
-                      })}
-                  </div>
-                  {/* Filter Summary */}
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      color: "#6B7280",
-                      textAlign: "center",
-                      padding: "4px",
-                      background: "rgba(107,114,128,0.05)",
-                      borderRadius: "6px",
-                      fontWeight: "500",
-                    }}
-                  >
-                    {selectedLayers.size === 0
-                      ? "No layers selected - showing none"
-                      : selectedLayers.size === getUniqueLayers.length
-                        ? "All layers selected"
-                        : `${selectedLayers.size} of ${getUniqueLayers.length} layer(s) selected`}
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div
+                        style={{
+                          padding: "20px",
+                          textAlign: "center",
+                          fontSize: "12px",
+                          color: "#9CA3AF",
+                          fontWeight: "500",
+                        }}
+                      >
+                        No layers found
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+
             </div>
           )}
 

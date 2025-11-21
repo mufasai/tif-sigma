@@ -3,12 +3,40 @@ import { FiSearch, FiNavigation, FiFilter, FiX, FiMapPin, FiTarget } from 'react
 
 export interface SearchSuggestion {
   id: string;
-  label: string;
-  type: string;
-  latitude: number;
-  longitude: number;
-  metadata?: Record<string, any>;
+  label: string; // This should map to the 'label' field from ruas rekap data (e.g., "BEKASI", "HDC CIKARANG")
+  type: string; // This should map to the 'layer' field from ruas rekap data (e.g., "tera - pehdc")
+  latitude: number; // This should map to the 'y' field from ruas rekap data
+  longitude: number; // This should map to the 'x' field from ruas rekap data
+  metadata?: Record<string, any>; // Additional fields like 'witel', 'platform', 'types', etc.
 }
+
+/**
+ * Example conversion from ruas rekap node to SearchSuggestion:
+ * 
+ * const ruasNode = {
+ *   id: "BKS",
+ *   label: "BEKASI",
+ *   layer: "tera - pehdc",
+ *   platform: "cisco",
+ *   witel: "BEKASI",
+ *   types: "TERA",
+ *   x: 107.02527,
+ *   y: -6.24991
+ * };
+ * 
+ * const suggestion: SearchSuggestion = {
+ *   id: ruasNode.id,
+ *   label: ruasNode.label,  // ✅ Use the label field directly
+ *   type: ruasNode.layer,
+ *   latitude: ruasNode.y,
+ *   longitude: ruasNode.x,
+ *   metadata: {
+ *     witel: ruasNode.witel,
+ *     platform: ruasNode.platform,
+ *     types: ruasNode.types
+ *   }
+ * };
+ */
 
 interface CompactSearchBarProps {
   onSearch: (query: string, suggestion?: SearchSuggestion) => void;
@@ -16,6 +44,38 @@ interface CompactSearchBarProps {
   platformFilters?: string[];
   onFilterClick?: (platform: string) => void;
   onClearFilter?: () => void;
+}
+
+/**
+ * Helper function to convert ruas rekap node data to SearchSuggestion format
+ * This ensures the 'label' field from ruas rekap is properly mapped
+ */
+export function convertRuasNodeToSuggestion(node: {
+  id: string;
+  label: string;
+  layer?: string;
+  platform?: string;
+  witel?: string;
+  types?: string;
+  sto?: string;
+  x: number;
+  y: number;
+  [key: string]: any;
+}): SearchSuggestion {
+  return {
+    id: node.id,
+    label: node.label, // ✅ Maps directly from the 'label' field in ruas rekap data
+    type: node.layer || 'unknown',
+    latitude: node.y,
+    longitude: node.x,
+    metadata: {
+      witel: node.witel,
+      platform: node.platform,
+      types: node.types,
+      sto: node.sto,
+      layer: node.layer
+    }
+  };
 }
 
 export function CompactSearchBar({ onSearch, suggestions = [], platformFilters = [], onFilterClick, onClearFilter }: CompactSearchBarProps) {
@@ -32,6 +92,11 @@ export function CompactSearchBar({ onSearch, suggestions = [], platformFilters =
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Filter suggestions based on query
+  // This filters by:
+  // 1. suggestion.label - the main label from ruas rekap data (e.g., "BEKASI", "HDC CIKARANG")
+  // 2. suggestion.type - the layer type (e.g., "tera - pehdc")
+  // 3. suggestion.metadata.witel - the witel information
+  // 4. suggestion.metadata.sto - the STO information
   useEffect(() => {
     if (query.trim().length > 0) {
       const filtered = suggestions.filter((suggestion) =>

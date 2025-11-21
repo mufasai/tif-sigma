@@ -339,11 +339,42 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     loadMultiNodeEdges();
   }, []);
 
-  // Load ruas rekap data from ruas_rekap_new.json
+  // Load ruas rekap data from selected layer file
+  const [selectedRuasLayer, setSelectedRuasLayer] = useState<string>("tera-tera");
+  
   useEffect(() => {
     const loadRuasRekapData = async () => {
       try {
-        const response = await fetch("/ruas_rekap_new.json");
+        // Map layer selection to file names
+        const layerFileMap: Record<string, string> = {
+          // TERA Layers
+          "tera-tera": "/ruas-rekap/trunk_all_tera_tera_layer.json",
+          "tera-metro": "/ruas-rekap/trunk_all_tera_metro_layer.json",
+          "tera-swc": "/ruas-rekap/trunk_all_tera_swc_layer.json",
+          "tera-pevoice": "/ruas-rekap/trunk_all_tera_pevoice_layer.json",
+          "tera-pemobile": "/ruas-rekap/trunk_all_tera_pemobile_layer.json",
+          "tera-pehsi": "/ruas-rekap/trunk_all_tera_pehsi_layer.json",
+          "tera-pehdc": "/ruas-rekap/trunk_all_tera_pehdc_layer.json",
+          "tera-cgw": "/ruas-rekap/trunk_all_tera_cgw_layer.json",
+          // METRO Layers
+          "trunk_all_metro_metro": "/ruas-rekap/trunk_all_metro_metro_layer.json",
+          "trunk_all_metro_spine": "/ruas-rekap/trunk_all_metro_spine_layer.json",
+          "trunk_all_metro_dcn": "/ruas-rekap/trunk_all_metro_dcn_layer.json",
+          "trunk_all_metro_bras": "/ruas-rekap/trunk_all_metro_bras_layer.json",
+          "trunk_all_metro_cdn": "/ruas-rekap/trunk_all_metro_cdn_layer.json",
+          "trunk_all_metro_cndc": "/ruas-rekap/trunk_all_metro_cndc_layer.json",
+          "trunk_all_metro_wac": "/ruas-rekap/trunk_all_metro_wac_layer.json",
+          "trunk_all_metro_wag": "/ruas-rekap/trunk_all_metro_wag_layer.json",
+          "trunk_all_metro_pedatin": "/ruas-rekap/trunk_all_metro_pedatin_layer.json",
+          "trunk_all_metro_pehsi": "/ruas-rekap/trunk_all_metro_pehsi_layer.json",
+          "trunk_all_metro_pevoice": "/ruas-rekap/trunk_all_metro_pevoice_layer.json",
+          "trunk_all_metro_rantsel": "/ruas-rekap/trunk_all_metro_rantsel_layer.json",
+          "trunk_all_metro_twamp": "/ruas-rekap/trunk_all_metro_twamp_layer.json",
+          "trunk_all_metro_starlink": "/ruas-rekap/trunk_all_metro_starlink_layer.json",
+        };
+
+        const filePath = layerFileMap[selectedRuasLayer] || layerFileMap["tera-tera"];
+        const response = await fetch(filePath);
         if (!response.ok) {
           throw new Error("Failed to load ruas rekap data");
         }
@@ -363,7 +394,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     };
 
     loadRuasRekapData();
-  }, []);
+  }, [selectedRuasLayer]);
 
   // Load ruas rekap STO data from ruas_rekap_sto.json
   useEffect(() => {
@@ -1705,10 +1736,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 target_label: edge.target_label || edge.target,
                 capacity: edge.total_capacity || edge.capacity || 0,
                 layer: edge.layer_list || edge.layer || "N/A",
-                traffic_95_in: edge.total_traffic_95_in || edge.traffic_95_in || 0,
-                traffic_95_out: edge.total_traffic_95_out || edge.traffic_95_out || 0,
-                traffic_max_in: edge.total_traffic_max_in || edge.traffic_max_in || 0,
-                traffic_max_out: edge.total_traffic_max_out || edge.traffic_max_out || 0,
+                traffic_in_log: edge.traffic_in_log || 0,
+                traffic_out_log: edge.traffic_out_log || 0,
+                traffic_in_psk: edge.traffic_in_psk || 0,
+                traffic_out_psk: edge.traffic_out_psk || 0,
                 utilization: edge.avg_utilization || edge.utilization || 0,
                 link_count: edge.link_count || 1,
                 details: JSON.stringify(edge.details || []),
@@ -1745,10 +1776,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                     target: topo.target,
                     capacity: topo.capacity || 0,
                     layer: topo.layer || "N/A",
-                    traffic_95_in: topo.traffic_95_in || 0,
-                    traffic_95_out: topo.traffic_95_out || 0,
-                    traffic_max_in: topo.traffic_max_in || 0,
-                    traffic_max_out: topo.traffic_max_out || 0,
+                    traffic_in_log: topo.traffic_in_log || 0,
+                    traffic_out_log: topo.traffic_out_log || 0,
+                    traffic_in_psk: topo.traffic_in_psk || 0,
+                    traffic_out_psk: topo.traffic_out_psk || 0,
                     utilization: topo.utilization || 0,
                     details: JSON.stringify([]),
                   },
@@ -1796,6 +1827,36 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
+      // Generate color based on selected layer
+      const layerColors: Record<string, string> = {
+        // TERA Layers
+        "tera-tera": "#3B82F6",           // Blue
+        "tera-metro": "#10B981",          // Green
+        "tera-swc": "#F59E0B",            // Amber
+        "tera-pevoice": "#8B5CF6",        // Purple
+        "tera-pemobile": "#EC4899",       // Pink
+        "tera-pehsi": "#14B8A6",          // Teal
+        "tera-pehdc": "#F97316",          // Orange
+        "tera-cgw": "#6366F1",            // Indigo
+        // METRO Layers
+        "trunk_all_metro_metro": "#06B6D4",      // Cyan
+        "trunk_all_metro_spine": "#8B5CF6",      // Violet
+        "trunk_all_metro_dcn": "#EC4899",        // Pink
+        "trunk_all_metro_bras": "#F59E0B",       // Amber
+        "trunk_all_metro_cdn": "#10B981",        // Green
+        "trunk_all_metro_cndc": "#EF4444",       // Red
+        "trunk_all_metro_wac": "#84CC16",        // Lime
+        "trunk_all_metro_wag": "#A855F7",        // Purple
+        "trunk_all_metro_pedatin": "#F43F5E",    // Rose
+        "trunk_all_metro_pehsi": "#0EA5E9",      // Sky Blue
+        "trunk_all_metro_pevoice": "#22C55E",    // Green
+        "trunk_all_metro_rantsel": "#14B8A6",    // Teal
+        "trunk_all_metro_twamp": "#F97316",      // Orange
+        "trunk_all_metro_starlink": "#6366F1",   // Indigo
+      };
+      
+      const currentLayerColor = layerColors[selectedRuasLayer] || "#3B82F6";
+
       // Add line glow layer (bottom layer) - Make it thicker for easier clicking
       map.current.addLayer({
         id: "ruasrekap-lines-glow",
@@ -1803,7 +1864,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         source: "ruasrekap",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#3B82F6",
+          "line-color": currentLayerColor,
           "line-width": 8, // Increased from 4 to 8 for easier clicking
           "line-opacity": 0.15,
           "line-blur": 2,
@@ -1817,7 +1878,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         source: "ruasrekap",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#2563EB",
+          "line-color": currentLayerColor,
           "line-width": 0.5,
           "line-opacity": 0.5, // Increased opacity from 0.3 to 0.5
         },
@@ -1837,7 +1898,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             5, ["*", ["get", "size"], 1],  // At zoom 5 and below, size * 1
             10, ["*", ["get", "size"], 2]  // At zoom 10 and above, size * 2
           ],
-          "circle-color": "#3B82F6",
+          "circle-color": currentLayerColor,
           "circle-stroke-width": 2,
           "circle-stroke-color": "#FFFFFF",
           "circle-opacity": 0.9,
@@ -1858,7 +1919,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             5, ["*", ["get", "size"], 5],   // At zoom 5 and below, size * 5
             10, ["*", ["get", "size"], 10]  // At zoom 10 and above, size * 10
           ],
-          "circle-color": "#3B82F6",
+          "circle-color": currentLayerColor,
           "circle-opacity": 0, // Invisible
         },
       });
@@ -2052,8 +2113,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Target:</strong> <span>${to}</span>
                   <strong>Capacity:</strong> <span style="color: #2563EB; font-weight: 600;">${capacityGbps} Gbps</span>
                   <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
-                  <strong>Traffic In:</strong> <span>${props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
-                  <strong>Traffic Out:</strong> <span>${props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                  <strong>Traffic In (LOG):</strong> <span>${props?.traffic_in_log ? (props.traffic_in_log / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                  <strong>Traffic Out (LOG):</strong> <span>${props?.traffic_out_log ? (props.traffic_out_log / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                  <strong>Traffic In (PSK):</strong> <span>${props?.traffic_in_psk ? (props.traffic_in_psk / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                  <strong>Traffic Out (PSK):</strong> <span>${props?.traffic_out_psk ? (props.traffic_out_psk / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
                 </div>
                 ${linkCountInfo}
                 ${detailsInfo}
@@ -2064,8 +2127,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           // Calculate utilization from traffic data
           const maxTraffic = Math.max(
-            props?.traffic_95_in || 0,
-            props?.traffic_95_out || 0
+            props?.traffic_in_log || 0,
+            props?.traffic_out_log || 0,
+            props?.traffic_in_psk || 0,
+            props?.traffic_out_psk || 0
           );
           const utilization = props?.capacity && props.capacity > 0
             ? ((maxTraffic / props.capacity) * 100)
@@ -2179,15 +2244,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           // Calculate utilization percentage if capacity exists
           const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
-          const trafficInGbps = props?.traffic_95_in ? (props.traffic_95_in / 1000000000).toFixed(2) : "0";
-          const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
-          const trafficMaxInGbps = props?.traffic_max_in ? (props.traffic_max_in / 1000000000).toFixed(2) : "0";
-          const trafficMaxOutGbps = props?.traffic_max_out ? (props.traffic_max_out / 1000000000).toFixed(2) : "0";
+          const trafficInLogGbps = props?.traffic_in_log ? (props.traffic_in_log / 1000000000).toFixed(2) : "0";
+          const trafficOutLogGbps = props?.traffic_out_log ? (props.traffic_out_log / 1000000000).toFixed(2) : "0";
+          const trafficInPskGbps = props?.traffic_in_psk ? (props.traffic_in_psk / 1000000000).toFixed(2) : "0";
+          const trafficOutPskGbps = props?.traffic_out_psk ? (props.traffic_out_psk / 1000000000).toFixed(2) : "0";
 
           // Calculate actual utilization from traffic
           let utilizationPercent = "0.00";
           if (props?.capacity && props.capacity > 0) {
-            const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
+            const maxTraffic = Math.max(
+              parseFloat(trafficInLogGbps) || 0, 
+              parseFloat(trafficOutLogGbps) || 0,
+              parseFloat(trafficInPskGbps) || 0,
+              parseFloat(trafficOutPskGbps) || 0
+            );
             utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
           }
 
@@ -2224,10 +2294,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Target:</strong> <span style="color: #10B981;">${targetLabel}</span>
                   <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
                   <strong>Capacity:</strong> <span style="color: #8B5CF6; font-weight: 600;">${capacityGbps} Gbps</span>
-                  <strong>Traffic In (95%):</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
-                  <strong>Traffic Out (95%):</strong> <span style="color: #10B981;">${trafficOutGbps} Gbps</span>
-                  <strong>Max Traffic In:</strong> <span style="color: #6366F1;">${trafficMaxInGbps} Gbps</span>
-                  <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficMaxOutGbps} Gbps</span>
+                  <strong>Traffic In (95%):</strong> <span style="color: #3B82F6;">${trafficInLogGbps} Gbps</span>
+                  <strong>Traffic Out (95%):</strong> <span style="color: #10B981;">${trafficOutLogGbps} Gbps</span>
+                  <strong>Max Traffic In:</strong> <span style="color: #6366F1;">${trafficInPskGbps} Gbps</span>
+                  <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficOutPskGbps} Gbps</span>
                   <strong>Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
                 </div>
                 ${linkCountInfo}
@@ -4138,6 +4208,26 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       });
     }
 
+    // Add ruas rekap suggestions (IMPORTANT: Add this for current selected layer)
+    if (showRuasRekapLayer && ruasRekapData) {
+      ruasRekapData.nodes.forEach((node) => {
+        suggestions.push({
+          id: `ruasrekap-${node.id}`,
+          label: node.label || node.id, // Use label field from ruas rekap data
+          type: selectedRuasLayer || "ruasrekap", // Use selected layer as type
+          latitude: node.y,
+          longitude: node.x,
+          metadata: {
+            platform: node.platform,
+            witel: node.witel,
+            reg: node.reg,
+            types: node.types,
+            layer: node.layer,
+          },
+        });
+      });
+    }
+
     // Add ruas rekap STO suggestions
     if (showRuasRekapStoLayer && ruasRekapStoData) {
       ruasRekapStoData.nodes.forEach((node) => {
@@ -4168,6 +4258,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       }
     });
     setPlatformFilters(Array.from(platforms).sort());
+
+    // Log suggestions count for debugging
+    // eslint-disable-next-line no-console
+    console.log(`Search suggestions updated: ${suggestions.length} items`);
   }, [
     showCapacityLayer,
     capacityData,
@@ -4177,6 +4271,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     multilayerMapData,
     showNodeEdgesLayer,
     nodeEdgesData,
+    showRuasRekapLayer,
+    ruasRekapData,
+    selectedRuasLayer, // Add selectedRuasLayer as dependency
     showRuasRekapStoLayer,
     ruasRekapStoData,
   ]);
@@ -4580,6 +4677,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         ruasRekapStoDataAvailable={!!ruasRekapStoData}
         ruasRekapStoData={ruasRekapStoData}
         isLayerLoading={isLayerLoading}
+        selectedRuasLayer={selectedRuasLayer}
+        onRuasLayerChange={setSelectedRuasLayer}
       />
 
       {/* Search Bar */}

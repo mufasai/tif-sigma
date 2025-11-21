@@ -72,7 +72,37 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
   const linkDetails = generateLinkDetails(connection);
   const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
   const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
-  const totalCapacity = connection.totalCapacity || `${connection.bandwidth_mbps || 1000}M`;
+  
+  // Helper function to format capacity with K suffix for thousands
+  const formatCapacity = (gbps: number): string => {
+    if (gbps >= 1000) {
+      return `${(gbps / 1000).toFixed(2)}K Gbps`;
+    }
+    return `${gbps.toFixed(2)} Gbps`;
+  };
+  
+  // Calculate total capacity - prioritize linkDetails if available
+  let totalCapacity: string;
+  
+  if (connection.linkDetails && connection.linkDetails.length > 0) {
+    // Sum all capacities from linkDetails and convert to Gbps
+    const totalCapacityBps = connection.linkDetails.reduce((sum, detail) => {
+      const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
+      return sum + capacity;
+    }, 0);
+    
+    if (totalCapacityBps > 0) {
+      const totalGbps = totalCapacityBps / 1000000000;
+      totalCapacity = formatCapacity(totalGbps);
+    } else {
+      // If linkDetails exist but no valid capacity, use fallback
+      totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
+    }
+  } else {
+    // No linkDetails, use provided totalCapacity or fallback
+    totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
+  }
+  
   const avgLatency = linkDetails.reduce((sum, l) => sum + parseFloat(l.latency), 0) / linkDetails.length;
   const avgPacketLoss = linkDetails.reduce((sum, l) => sum + parseFloat(l.packetLoss), 0) / linkDetails.length;
 
@@ -386,10 +416,10 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '110px' }}>Layer</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '110px' }}>Port Log</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Capacity</th>
-                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic In (Mbps)</th>
-                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out (Mbps)</th>
-                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Max In (Mbps)</th>
-                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Max Out (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic In Log (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out Log (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic In PSK (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out PSK (Mbps)</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '100px' }}>Utilization</th>
                   </tr>
                 </thead>
@@ -398,10 +428,10 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     // Show detailed link data if available
                     connection.linkDetails.map((detail, index) => {
                       const capacity = typeof detail.capacity === 'number' ? (detail.capacity / 1000000000).toFixed(2) + ' Gbps' : 'N/A';
-                      const trafficIn = typeof detail.traffic_95_in === 'number' ? (detail.traffic_95_in / 1000000).toFixed(2) : 'N/A';
-                      const trafficOut = typeof detail.traffic_95_out === 'number' ? (detail.traffic_95_out / 1000000).toFixed(2) : 'N/A';
-                      const maxIn = typeof detail.traffic_max_in === 'number' ? (detail.traffic_max_in / 1000000).toFixed(2) : 'N/A';
-                      const maxOut = typeof detail.traffic_max_out === 'number' ? (detail.traffic_max_out / 1000000).toFixed(2) : 'N/A';
+                      const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000).toFixed(2) : 'N/A';
+                      const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000).toFixed(2) : 'N/A';
+                      const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000).toFixed(2) : 'N/A';
+                      const traffic_out_psk = typeof detail.traffic_out_psk === 'number' ? (detail.traffic_out_psk / 1000000).toFixed(2) : 'N/A';
                       const utilization = typeof detail.utilization === 'number' ? detail.utilization.toFixed(2) : '0.00';
 
                       return (
@@ -443,16 +473,16 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                             {capacity}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#3B82F6', textAlign: 'right', fontWeight: '600' }}>
-                            {trafficIn}
+                            {traffic_in_log}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#10B981', textAlign: 'right', fontWeight: '600' }}>
-                            {trafficOut}
+                            {traffic_out_log}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#6366F1', textAlign: 'right' }}>
-                            {maxIn}
+                            {traffic_in_psk}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#14B8A6', textAlign: 'right' }}>
-                            {maxOut}
+                            {traffic_out_psk}
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
