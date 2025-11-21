@@ -1,5 +1,5 @@
-import { X, Activity, TrendingUp, AlertTriangle, Zap, Clock, Signal, Network } from 'lucide-react';
-import React from 'react';
+import { X, Activity, TrendingUp, AlertTriangle, Zap, Clock, Signal, Network, Circle, GitBranch } from 'lucide-react';
+import React, { ReactNode } from 'react';
 
 interface LinkDetailsPanelProps {
   connection: {
@@ -13,6 +13,11 @@ interface LinkDetailsPanelProps {
     linkCount?: number;
     totalCapacity?: string;
     type?: string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    nodeData?: Record<string, any>; // Add nodeData to pass all node properties
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    linkDetails?: Array<Record<string, any>>; // Add linkDetails to pass detailed link data
+    clickedType?: 'node' | 'edge'; // Add clickedType to indicate what was clicked
   };
   onClose: () => void;
   onShowTopology?: () => void;
@@ -71,51 +76,62 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
   const avgLatency = linkDetails.reduce((sum, l) => sum + parseFloat(l.latency), 0) / linkDetails.length;
   const avgPacketLoss = linkDetails.reduce((sum, l) => sum + parseFloat(l.packetLoss), 0) / linkDetails.length;
 
-  const NeumorphicCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-    <div
-      className={className}
-      style={{
-        background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.8))',
-        backdropFilter: 'blur(20px)',
-        borderRadius: '16px',
-        border: '1px solid rgba(255,255,255,0.3)',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)',
-        padding: '16px'
-      }}
-    >
-      {children}
-    </div>
-  );
+
+
+  interface NeumorphicCardProps {
+    children?: ReactNode;
+    className?: string;
+  }
+
+  const NeumorphicCard = ({ children, className = "" }: NeumorphicCardProps) => {
+    return (
+      <div
+        className={className}
+        style={{
+          background: 'linear-gradient(145deg, rgba(255,255,255,0.9), rgba(240,240,240,0.8))',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255,255,255,0.3)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.8)',
+          padding: '16px'
+        }}
+      >
+        {children}
+      </div>
+    );
+  };
 
   const StatCard = ({ icon: Icon, label, value, color }: {
     icon: React.ElementType; label: string; value: string; color: string
-  }) => (
-    <div style={{
-      background: `linear-gradient(135deg, ${color}15, ${color}08)`,
-      border: `1px solid ${color}25`,
-      borderRadius: '12px',
-      padding: '12px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '8px'
-    }}>
+  }): React.ReactElement => {
+    return (
       <div style={{
-        background: `linear-gradient(135deg, ${color}25, ${color}15)`,
-        borderRadius: '8px',
-        padding: '8px',
+        background: `linear-gradient(135deg, ${color}15, ${color}08)`,
+        border: `1px solid ${color}25`,
+        borderRadius: '12px',
+        padding: '12px',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center'
+        gap: '8px'
       }}>
-        <Icon style={{ width: '16px', height: '16px', color }} />
+        <div style={{
+          background: `linear-gradient(135deg, ${color}25, ${color}15)`,
+          borderRadius: '8px',
+          padding: '8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <Icon style={{ width: '16px', height: '16px', color }} />
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: '500' }}>{label}</div>
+          <div style={{ fontSize: '18px', color: '#1F2937', fontWeight: '700' }}>{value}</div>
+        </div>
       </div>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: '500' }}>{label}</div>
-        <div style={{ fontSize: '18px', color: '#1F2937', fontWeight: '700' }}>{value}</div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div style={{
@@ -148,15 +164,62 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
             justifyContent: 'space-between',
             marginBottom: '16px'
           }}>
-            <div>
-              <h3 style={{
-                margin: '0 0 4px 0',
-                fontSize: '18px',
-                fontWeight: '700',
-                color: '#1F2937'
-              }}>
-                Link Analytics
-              </h3>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '18px',
+                  fontWeight: '700',
+                  color: '#1F2937'
+                }}>
+                  Link Analytics
+                </h3>
+                {/* Clicked Type Badge */}
+                {connection.clickedType && (
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    background: connection.clickedType === 'node'
+                      ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.15))'
+                      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(124, 58, 237, 0.15))',
+                    color: connection.clickedType === 'node' ? '#1E40AF' : '#6D28D9',
+                    border: connection.clickedType === 'node'
+                      ? '1.5px solid rgba(59, 130, 246, 0.4)'
+                      : '1.5px solid rgba(139, 92, 246, 0.4)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.8px',
+                    boxShadow: connection.clickedType === 'node'
+                      ? '0 2px 8px rgba(59, 130, 246, 0.15)'
+                      : '0 2px 8px rgba(139, 92, 246, 0.15)',
+                    transition: 'all 0.2s ease',
+                    animation: 'fadeInBadge 0.3s ease-out'
+                  }}>
+                    {connection.clickedType === 'node' ? (
+                      <Circle style={{ width: '13px', height: '13px', strokeWidth: 2.5 }} />
+                    ) : (
+                      <GitBranch style={{ width: '13px', height: '13px', strokeWidth: 2.5 }} />
+                    )}
+                    {connection.clickedType === 'node' ? 'Node' : 'Edge'}
+                  </span>
+                )}
+                <style>{`
+                  @keyframes fadeInBadge {
+                    from {
+                      opacity: 0;
+                      transform: scale(0.9);
+                    }
+                    to {
+                      opacity: 1;
+                      transform: scale(1);
+                    }
+                  }
+                `}</style>
+              </div>
               <p style={{
                 margin: 0,
                 fontSize: '13px',
@@ -274,7 +337,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
           gap: '20px'
         }}>
 
-          {/* Individual Links Table */}
+          {/* Physical Links Table - Combined with Detailed Information */}
           <NeumorphicCard>
             <h4 style={{
               margin: '0 0 16px 0',
@@ -287,82 +350,335 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
             }}>
               <Signal style={{ width: '16px', height: '16px', color: '#4F46E5' }} />
               Physical Links
+              {connection.linkDetails && Array.isArray(connection.linkDetails) && connection.linkDetails.length > 0 && (
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: '#4F46E520',
+                  color: '#4F46E5',
+                  border: '1px solid #4F46E530'
+                }}>
+                  {connection.linkDetails.length} link{connection.linkDetails.length !== 1 ? 's' : ''}
+                </span>
+              )}
             </h4>
 
-            <div style={{ overflow: 'hidden', borderRadius: '12px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
+            <div style={{
+              overflowX: 'auto',
+              overflowY: 'visible',
+              borderRadius: '12px',
+              maxHeight: '400px'
+            }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                minWidth: connection.linkDetails && connection.linkDetails.length > 0 ? '1400px' : '100%'
+              }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                   <tr style={{ background: 'linear-gradient(135deg, #F8FAFC, #F1F5F9)' }}>
-                    <th style={{ padding: '12px 8px', fontSize: '11px', fontWeight: '600', color: '#475569', textAlign: 'left' }}>Link Name</th>
-                    <th style={{ padding: '12px 8px', fontSize: '11px', fontWeight: '600', color: '#475569', textAlign: 'center' }}>Capacity</th>
-                    <th style={{ padding: '12px 8px', fontSize: '11px', fontWeight: '600', color: '#475569', textAlign: 'center' }}>Utilization</th>
-                    <th style={{ padding: '12px 8px', fontSize: '11px', fontWeight: '600', color: '#475569', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'left', minWidth: '180px' }}>
+                      Ruas / Link Name
+                    </th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'left', minWidth: '140px' }}>Source Node</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'left', minWidth: '140px' }}>Target Node</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '110px' }}>Layer</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '110px' }}>Port Log</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Capacity</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic In (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Max In (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Max Out (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '100px' }}>Utilization</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {linkDetails.map((link, index) => (
-                    <tr key={link.id} style={{
-                      borderTop: index > 0 ? '1px solid #E5E7EB' : 'none',
-                      background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent'
-                    }}>
-                      <td style={{ padding: '12px 8px', fontSize: '12px', color: '#374151', fontWeight: '500' }}>
-                        {link.linkName}
-                      </td>
-                      <td style={{ padding: '12px 8px', fontSize: '12px', color: '#374151', textAlign: 'center' }}>
-                        {link.capacity}
-                      </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-                          <div style={{
-                            width: '40px',
-                            height: '6px',
-                            background: '#E5E7EB',
-                            borderRadius: '3px',
-                            overflow: 'hidden'
-                          }}>
-                            <div
-                              style={{
-                                height: '100%',
-                                width: `${link.utilization}%`,
-                                background: link.utilization > 80 ? '#EF4444' : link.utilization > 60 ? '#F59E0B' : '#10B981',
-                                borderRadius: '3px',
-                                transition: 'width 0.3s ease'
-                              }}
-                            />
-                          </div>
-                          <span style={{ fontSize: '12px', color: '#374151', fontWeight: '600' }}>
-                            {link.utilization}%
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          fontSize: '10px',
-                          fontWeight: '600',
-                          background: link.status === 'Active' ? '#10B98120' : '#F59E0B20',
-                          color: link.status === 'Active' ? '#059669' : '#D97706',
-                          border: `1px solid ${link.status === 'Active' ? '#10B98130' : '#F59E0B30'}`
+                  {connection.linkDetails && connection.linkDetails.length > 0 ? (
+                    // Show detailed link data if available
+                    connection.linkDetails.map((detail, index) => {
+                      const capacity = typeof detail.capacity === 'number' ? (detail.capacity / 1000000000).toFixed(2) + ' Gbps' : 'N/A';
+                      const trafficIn = typeof detail.traffic_95_in === 'number' ? (detail.traffic_95_in / 1000000).toFixed(2) : 'N/A';
+                      const trafficOut = typeof detail.traffic_95_out === 'number' ? (detail.traffic_95_out / 1000000).toFixed(2) : 'N/A';
+                      const maxIn = typeof detail.traffic_max_in === 'number' ? (detail.traffic_max_in / 1000000).toFixed(2) : 'N/A';
+                      const maxOut = typeof detail.traffic_max_out === 'number' ? (detail.traffic_max_out / 1000000).toFixed(2) : 'N/A';
+                      const utilization = typeof detail.utilization === 'number' ? detail.utilization.toFixed(2) : '0.00';
+
+                      return (
+                        <tr key={index} style={{
+                          borderTop: index > 0 ? '1px solid #E5E7EB' : 'none',
+                          background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent'
                         }}>
-                          <div style={{
-                            width: '4px',
-                            height: '4px',
-                            borderRadius: '50%',
-                            background: link.status === 'Active' ? '#10B981' : '#F59E0B'
-                          }} />
-                          {link.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', fontWeight: '500' }}>
+                            {String(detail.ruas || 'N/A')}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: '600' }}>{String(detail.source_node || detail.source || 'N/A')}</span>
+                              <span style={{ fontSize: '9px', color: '#6B7280' }}>{String(detail.source_label || '')}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontWeight: '600' }}>{String(detail.target_node || detail.target || 'N/A')}</span>
+                              <span style={{ fontSize: '9px', color: '#6B7280' }}>{String(detail.target_label || '')}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
+                            <span style={{
+                              padding: '3px 6px',
+                              borderRadius: '4px',
+                              background: '#8B5CF615',
+                              color: '#8B5CF6',
+                              fontWeight: '600',
+                              fontSize: '9px'
+                            }}>
+                              {String(detail.layer || detail.trunk_layer || 'N/A')}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center', fontFamily: 'monospace' }}>
+                            {String(detail.port_log || 'N/A')}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#4F46E5', textAlign: 'right', fontWeight: '600' }}>
+                            {capacity}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#3B82F6', textAlign: 'right', fontWeight: '600' }}>
+                            {trafficIn}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#10B981', textAlign: 'right', fontWeight: '600' }}>
+                            {trafficOut}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#6366F1', textAlign: 'right' }}>
+                            {maxIn}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#14B8A6', textAlign: 'right' }}>
+                            {maxOut}
+                          </td>
+                          <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                              <div style={{
+                                width: '60px',
+                                height: '6px',
+                                background: '#E5E7EB',
+                                borderRadius: '3px',
+                                overflow: 'hidden'
+                              }}>
+                                <div
+                                  style={{
+                                    height: '100%',
+                                    width: `${Math.min(parseFloat(utilization), 100)}%`,
+                                    background: parseFloat(utilization) > 80 ? '#EF4444' : parseFloat(utilization) > 60 ? '#F59E0B' : '#10B981',
+                                    borderRadius: '3px',
+                                    transition: 'width 0.3s ease'
+                                  }}
+                                />
+                              </div>
+                              <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
+                                {utilization}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    // Show generated link data with same column structure
+                    linkDetails.map((link, index) => (
+                      <tr key={link.id} style={{
+                        borderTop: index > 0 ? '1px solid #E5E7EB' : 'none',
+                        background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent'
+                      }}>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', fontWeight: '500' }}>
+                          {link.linkName}
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontWeight: '600' }}>{connection.from}</span>
+                            <span style={{ fontSize: '9px', color: '#6B7280' }}>Source</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span style={{ fontWeight: '600' }}>{connection.to}</span>
+                            <span style={{ fontSize: '9px', color: '#6B7280' }}>Target</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
+                          <span style={{
+                            padding: '3px 6px',
+                            borderRadius: '4px',
+                            background: '#8B5CF615',
+                            color: '#8B5CF6',
+                            fontWeight: '600',
+                            fontSize: '9px'
+                          }}>
+                            {connection.type || 'N/A'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center', fontFamily: 'monospace' }}>
+                          {link.interface}
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#4F46E5', textAlign: 'right', fontWeight: '600' }}>
+                          {link.capacity}
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#3B82F6', textAlign: 'right', fontWeight: '600' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#10B981', textAlign: 'right', fontWeight: '600' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#6366F1', textAlign: 'right' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#14B8A6', textAlign: 'right' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <div style={{
+                              width: '60px',
+                              height: '6px',
+                              background: '#E5E7EB',
+                              borderRadius: '3px',
+                              overflow: 'hidden'
+                            }}>
+                              <div
+                                style={{
+                                  height: '100%',
+                                  width: `${link.utilization}%`,
+                                  background: link.utilization > 80 ? '#EF4444' : link.utilization > 60 ? '#F59E0B' : '#10B981',
+                                  borderRadius: '3px',
+                                  transition: 'width 0.3s ease'
+                                }}
+                              />
+                            </div>
+                            <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
+                              {link.utilization}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* Scroll hint - always show */}
+            <div style={{
+              marginTop: '8px',
+              padding: '6px 12px',
+              background: 'rgba(79, 70, 229, 0.05)',
+              borderRadius: '6px',
+              fontSize: '10px',
+              color: '#4F46E5',
+              textAlign: 'center',
+              fontWeight: '500'
+            }}>
+              ← Scroll horizontally to view all columns →
+            </div>
           </NeumorphicCard>
+
+          {/* Edge Details Section - Show when edge is clicked */}
+          {connection.clickedType === 'edge' && connection.nodeData && (
+            <NeumorphicCard>
+              <h4 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#1F2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <GitBranch style={{ width: '16px', height: '16px', color: '#7C3AED' }} />
+                Edge Details
+              </h4>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px'
+              }}>
+                {/* Display edge properties from nodeData (edge data outside details array) */}
+                {Object.entries(connection.nodeData)
+                  .filter(([key]) =>
+                    // Exclude details array and some internal fields that are not useful
+                    !['details', 'topology', 'x', 'y', 'coordinates', 'source_lon', 'source_lat', 'target_lon', 'target_lat'].includes(key)
+                  )
+                  .map(([key, value]) => {
+                    // Format the key
+                    const formattedKey = key
+                      .split('_')
+                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ');
+
+                    // Format the value
+                    let formattedValue: string;
+                    let valueColor = '#1F2937';
+
+                    // Special formatting for specific fields
+                    if (key.includes('capacity') && typeof value === 'number') {
+                      formattedValue = `${(value / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#7C3AED';
+                    } else if (key.includes('traffic') && typeof value === 'number') {
+                      formattedValue = `${(value / 1000000).toFixed(2)} Mbps`;
+                      valueColor = key.includes('in') ? '#3B82F6' : '#10B981';
+                    } else if (key.includes('utilization') && typeof value === 'number') {
+                      formattedValue = `${value.toFixed(2)}%`;
+                      valueColor = value > 80 ? '#EF4444' : value > 60 ? '#F59E0B' : '#10B981';
+                    } else if (key === 'link_count' && typeof value === 'number') {
+                      formattedValue = String(value);
+                      valueColor = '#8B5CF6';
+                    } else if (key === 'size' && typeof value === 'number') {
+                      formattedValue = String(value);
+                      valueColor = '#6366F1';
+                    } else if (typeof value === 'string' && value.length > 50) {
+                      formattedValue = value.substring(0, 47) + '...';
+                    } else if (value === null || value === undefined || value === '') {
+                      formattedValue = 'N/A';
+                    } else if (typeof value === 'object') {
+                      formattedValue = JSON.stringify(value);
+                    } else {
+                      formattedValue = String(value);
+                    }
+
+                    return (
+                      <div
+                        key={key}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          padding: '8px',
+                          background: 'rgba(249, 250, 251, 0.5)',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(229, 231, 235, 0.5)'
+                        }}
+                      >
+                        <span style={{
+                          fontSize: '11px',
+                          color: '#6B7280',
+                          fontWeight: '600',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          {formattedKey}
+                        </span>
+                        <span style={{
+                          fontSize: '13px',
+                          color: valueColor,
+                          fontWeight: '600',
+                          wordBreak: 'break-word'
+                        }}>
+                          {formattedValue}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </NeumorphicCard>
+          )}
 
           {/* Performance Metrics */}
           <NeumorphicCard>
@@ -420,6 +736,105 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               </div>
             </div>
           </NeumorphicCard>
+
+          {/* Node Details Section - Only show if nodeData exists */}
+          {connection.nodeData && (
+            <NeumorphicCard>
+              <h4 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#1F2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Network style={{ width: '16px', height: '16px', color: '#6366F1' }} />
+                Node Details
+              </h4>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px'
+              }}>
+                {/* Dynamically render all node properties */}
+                {Object.entries(connection.nodeData)
+                  .filter(([key]) =>
+                    // Exclude certain keys that are not useful to display
+                    !['topology', 'details', 'x', 'y', 'coordinates'].includes(key)
+                  )
+                  .map(([key, value]) => {
+                    // Format the key to be more readable
+                    const formattedKey = key
+                      .split('_')
+                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ');
+
+                    // Format the value
+                    let formattedValue = value;
+                    if (typeof value === 'string' && value.length > 50) {
+                      formattedValue = value.substring(0, 47) + '...';
+                    } else if (value === null || value === undefined || value === '') {
+                      formattedValue = 'N/A';
+                    } else if (typeof value === 'object') {
+                      formattedValue = JSON.stringify(value);
+                    }
+
+                    return (
+                      <div
+                        key={key}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          padding: '8px',
+                          background: 'rgba(249, 250, 251, 0.5)',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(229, 231, 235, 0.5)'
+                        }}
+                      >
+                        <span style={{
+                          fontSize: '11px',
+                          color: '#6B7280',
+                          fontWeight: '600',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px'
+                        }}>
+                          {formattedKey}
+                        </span>
+                        <span style={{
+                          fontSize: '13px',
+                          color: '#1F2937',
+                          fontWeight: '600',
+                          wordBreak: 'break-word'
+                        }}>
+                          {String(formattedValue)}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Show coordinates if available */}
+              {(connection.nodeData.x !== undefined || connection.nodeData.y !== undefined) && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '10px',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(79, 70, 229, 0.05))',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(99, 102, 241, 0.2)'
+                }}>
+                  <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: '600', marginBottom: '4px' }}>
+                    COORDINATES
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#4F46E5', fontWeight: '700' }}>
+                    Longitude: {typeof connection.nodeData.x === 'number' ? connection.nodeData.x.toFixed(6) : 'N/A'}, Latitude: {typeof connection.nodeData.y === 'number' ? connection.nodeData.y.toFixed(6) : 'N/A'}
+                  </div>
+                </div>
+              )}
+            </NeumorphicCard>
+          )}
 
           {/* Alerts Section */}
           <NeumorphicCard>

@@ -72,7 +72,6 @@ export function LeftSidebar({
   ruasRekapData = null,
   // _filteredRuasNodes = [],
   onFilterRuasNodes,
-  ruasRekapStoDataAvailable = false,
   ruasRekapStoData = null,
   isLayerLoading = false,
 }: LeftSidebarProps) {
@@ -84,6 +83,7 @@ export function LeftSidebar({
   const [selectedLayers, setSelectedLayers] = useState<Set<string>>(new Set());
   const [selectAllLayers, setSelectAllLayers] = useState(true);
   const isInitializingRef = useRef(false);
+
 
   // Get unique layers from ruas rekap data (support both datasets)
   const getUniqueLayers = React.useMemo(() => {
@@ -830,10 +830,10 @@ export function LeftSidebar({
                       Ruas Rekap TERA{" "}
                       {!ruasRekapDataAvailable ? "(Loading...)" : `(${ruasRekapData?.nodes?.length || 0} nodes)`}
                     </option>
-                    <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
+                    {/* <option value="ruasrekapsto" disabled={!ruasRekapStoDataAvailable}>
                       Ruas Rekap STO{" "}
                       {!ruasRekapStoDataAvailable ? "(Loading...)" : `(${ruasRekapStoData?.nodes?.length || 0} nodes)`}
-                    </option>
+                    </option> */}
                     <option value="capacity" disabled={capacityDataLength === 0}>
                       Capacity Polygons
                     </option>
