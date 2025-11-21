@@ -120,6 +120,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     type?: string;
     nodeData?: any; // Add nodeData to pass all node properties
     linkDetails?: Array<Record<string, any>>; // Add linkDetails to pass detailed link data
+    clickedType?: 'node' | 'edge'; // Add clickedType to indicate what was clicked
   } | null>(null);
   const [showTopologyDrawer, setShowTopologyDrawer] = useState(false);
   const [topologyConnection, setTopologyConnection] = useState<{
@@ -1220,6 +1221,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: "10G",
             type: "CAPACITY",
             nodeData: props, // Pass all node properties
+            clickedType: 'node', // Indicate that a node was clicked
           });
           setShowLinkDetails(true);
 
@@ -1250,6 +1252,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             linkCount: 2,
             totalCapacity: "10G",
             type: "L2_AGGREGATION",
+            nodeData: props, // Pass edge properties
+            clickedType: 'edge', // Indicate that an edge was clicked
           });
           setShowLinkDetails(true);
 
@@ -1543,6 +1547,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: "10G",
             type: "SIRKIT",
             nodeData: props, // Pass all node properties
+            clickedType: 'node', // Indicate that a node was clicked
           });
           setShowLinkDetails(true);
 
@@ -1896,6 +1901,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               type: props?.layer || "NODE",
               nodeData: props,
               linkDetails: nodeDetails, // Pass node details
+              clickedType: 'node', // Indicate that a node was clicked
             });
             setShowLinkDetails(true);
           } else if (connectedEdges.length > 0) {
@@ -1916,6 +1922,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
               type: firstEdge.layer_list || "L2_AGGREGATION",
               nodeData: props, // Pass all node properties
+              clickedType: 'node', // Indicate that a node was clicked
             });
             setShowLinkDetails(true);
           }
@@ -1936,7 +1943,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       const handleEdgeClick = (e: maplibregl.MapLayerMouseEvent) => {
         // eslint-disable-next-line no-console
         console.log('Edge click detected!', e);
-        
+
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
@@ -2035,8 +2042,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: `${capacityGbps}G`,
             type: props?.layer || "L2_AGGREGATION",
             linkDetails: detailsData?.length > 0 ? detailsData : undefined, // Pass detailed link data from edge
+            nodeData: props, // Pass edge properties (data outside details array)
+            clickedType: 'edge', // Indicate that an edge was clicked
           });
-          
+
           // eslint-disable-next-line no-console
           console.log('Calling setShowLinkDetails(true)');
           setShowLinkDetails(true);
@@ -2053,7 +2062,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       // Add click handler for lines (thin line)
       map.current.on("click", "ruasrekap-lines", handleEdgeClick);
-      
+
       // Add click handler for glow lines (thicker, easier to click)
       map.current.on("click", "ruasrekap-lines-glow", handleEdgeClick);
 
@@ -2533,6 +2542,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
               type: firstEdge.layer_list || "L2_AGGREGATION",
               nodeData: props, // Pass all node properties
+              clickedType: 'node', // Indicate that a node was clicked
             });
             setShowLinkDetails(true);
           }
@@ -2660,6 +2670,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: `${capacityGbps}G`,
             type: props?.layer || "L2_AGGREGATION",
             linkDetails: detailsData?.length > 0 ? detailsData : undefined, // Pass detailed link data
+            nodeData: props, // Pass edge properties (data outside details array)
+            clickedType: 'edge', // Indicate that an edge was clicked
           });
           setShowLinkDetails(true);
 
@@ -3195,6 +3207,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             linkCount: 2,
             totalCapacity: "10G",
             type: "L2_AGGREGATION",
+            nodeData: props, // Pass edge properties
+            clickedType: 'edge', // Indicate that an edge was clicked
           });
           setShowLinkDetails(true);
 
@@ -3518,6 +3532,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: "10G",
             type: "NODE_EDGES",
             nodeData: props, // Pass all node properties
+            clickedType: 'node', // Indicate that a node was clicked
           });
           setShowLinkDetails(true);
 
@@ -3595,6 +3610,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             linkCount: 1,
             totalCapacity: `${(avgCapacityMbps / 1000).toFixed(1)}G`,
             type: "L2_AGGREGATION",
+            nodeData: props, // Pass edge properties
+            clickedType: 'edge', // Indicate that an edge was clicked
           });
           setShowLinkDetails(true);
 
