@@ -29,7 +29,7 @@ import { loadKabupatenData } from "../services/kabupaten.service";
 import "../styles/maplibre-view.css";
 import { AreaConnection, NetworkElement } from "../types";
 import { NodeData, parseMapData } from "../utils/maplibreCSVParser";
-import { createProvinceGeoJSON, testProvinceData } from "../utils/testProvinceData";
+import { createProvinceGeoJSON } from "../utils/testProvinceData";
 
 // import { toast } from 'sonner@2.0.3';
 
@@ -330,8 +330,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
         const data = await response.json();
         setNodeEdgesData(data);
-        // eslint-disable-next-line no-console
-        console.log("Node edges data loaded:", data);
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error("Error loading node edges data:", error);
@@ -352,8 +350,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         const data = await response.json();
         setRuasRekapData(data);
         setIsRuasRekapInitialLoad(true); // Reset initial load flag
-        // eslint-disable-next-line no-console
-        console.log("Ruas rekap data loaded:", data);
 
         // Initialize filteredRuasNodes with all node IDs
         if (data?.nodes && Array.isArray(data.nodes)) {
@@ -380,8 +376,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         const data = await response.json();
         setRuasRekapStoData(data);
         setIsRuasRekapStoInitialLoad(true); // Reset initial load flag
-        // eslint-disable-next-line no-console
-        console.log("Ruas rekap STO data loaded:", data);
 
         // Initialize filteredRuasStoNodes with all node IDs (for STO)
         // Extract all unique node IDs from topology
@@ -463,6 +457,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       map.current.on("load", () => {
         setMapLoaded(true);
+        // Log initial zoom level
+        const initialZoom = map.current?.getZoom() || 5;
+        // eslint-disable-next-line no-console
+        console.log('Map Loaded - Initial Zoom Level:', initialZoom.toFixed(2));
+
+        // Add window helper for debugging zoom from browser console
+        // Usage: window.getMapZoom()
+        (window as any).getMapZoom = () => {
+          const zoom = map.current?.getZoom();
+          // eslint-disable-next-line no-console
+          console.log('Current Map Zoom:', zoom?.toFixed(2));
+          return zoom;
+        };
       });
     }, 0);
 
@@ -506,8 +513,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
   // Add province layer function
   const addProvinceLayer = () => {
-    // Test province data
-    testProvinceData();
 
     if (!map.current) {
       return;
@@ -1652,7 +1657,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
     try {
       // Remove existing layers if they exist
-      const layersToRemove = ["ruasrekap-points", "ruasrekap-lines", "ruasrekap-lines-glow"];
+      const layersToRemove = ["ruasrekap-points-hitarea", "ruasrekap-points", "ruasrekap-lines", "ruasrekap-lines-glow"];
       layersToRemove.forEach((layerId) => {
         if (map.current!.getLayer(layerId)) {
           map.current!.removeLayer(layerId);
@@ -1813,7 +1818,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
           "line-color": "#2563EB",
-          "line-width": 2, // Increased from 0.5 to 2 for easier clicking
+          "line-width": 0.5,
           "line-opacity": 0.5, // Increased opacity from 0.3 to 0.5
         },
       });
@@ -1823,9 +1828,15 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         id: "ruasrekap-points",
         type: "circle",
         source: "ruasrekap",
-        filter: ["==", ["geometry-type"], "Point"],
+        filter: ["==", ["geometry-type"], "Point",],
         paint: {
-          "circle-radius": ["*", ["get", "size"], 2],
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            5, ["*", ["get", "size"], 1],  // At zoom 5 and below, size * 1
+            10, ["*", ["get", "size"], 2]  // At zoom 10 and above, size * 2
+          ],
           "circle-color": "#3B82F6",
           "circle-stroke-width": 2,
           "circle-stroke-color": "#FFFFFF",
@@ -1833,8 +1844,33 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points - Show LinkDetailsPanel and NodeDetailDialog
-      map.current.on("click", "ruasrekap-points", (e) => {
+      // Add invisible hit area layer on top of points for better click detection
+      map.current.addLayer({
+        id: "ruasrekap-points-hitarea",
+        type: "circle",
+        source: "ruasrekap",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            5, ["*", ["get", "size"], 5],   // At zoom 5 and below, size * 5
+            10, ["*", ["get", "size"], 10]  // At zoom 10 and above, size * 10
+          ],
+          "circle-color": "#3B82F6",
+          "circle-opacity": 0, // Invisible
+        },
+      });
+
+      // Shared handler function for node clicks
+      const handleNodeClick = (e: maplibregl.MapLayerMouseEvent) => {
+        // Prevent event from propagating to edge layers below
+        e.preventDefault();
+        if (e.originalEvent) {
+          e.originalEvent.stopPropagation();
+        }
+
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
@@ -1937,10 +1973,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           // Don't auto-show topology drawer, let user click the button
           // setShowTopologyDrawer(true);
         }
-      });
+      };
+
+      // Add click handler for both points layer and hit area layer
+      map.current.on("click", "ruasrekap-points", handleNodeClick);
+      map.current.on("click", "ruasrekap-points-hitarea", handleNodeClick);
 
       // Shared handler function for edge clicks
       const handleEdgeClick = (e: maplibregl.MapLayerMouseEvent) => {
+        // Check if there's a node at this location - if yes, ignore edge click
+        const nodeFeatures = map.current!.queryRenderedFeatures(e.point, {
+          layers: ['ruasrekap-points', 'ruasrekap-points-hitarea']
+        });
+
+        if (nodeFeatures && nodeFeatures.length > 0) {
+          // There's a node here, let the node handler deal with it
+          return;
+        }
+
         // eslint-disable-next-line no-console
         console.log('Edge click detected!', e);
 
@@ -2074,8 +2124,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         className: "hover-popup",
       });
 
-      // Add hover handlers for points with popup
-      map.current.on("mouseenter", "ruasrekap-points", (e) => {
+      // Shared hover enter handler for points
+      const handlePointsHoverEnter = (e: maplibregl.MapLayerMouseEvent) => {
         map.current!.getCanvas().style.cursor = "pointer";
 
         if (e.features && e.features.length > 0) {
@@ -2104,12 +2154,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
         }
-      });
+      };
 
-      map.current.on("mouseleave", "ruasrekap-points", () => {
+      // Shared hover leave handler for points
+      const handlePointsHoverLeave = () => {
         map.current!.getCanvas().style.cursor = "";
         hoverPopup.remove();
-      });
+      };
+
+      // Add hover handlers for both points layer and hit area layer
+      map.current.on("mouseenter", "ruasrekap-points", handlePointsHoverEnter);
+      map.current.on("mouseenter", "ruasrekap-points-hitarea", handlePointsHoverEnter);
+      map.current.on("mouseleave", "ruasrekap-points", handlePointsHoverLeave);
+      map.current.on("mouseleave", "ruasrekap-points-hitarea", handlePointsHoverLeave);
 
       // Add hover handlers for lines (edges) with popup
       map.current.on("mouseenter", "ruasrekap-lines", (e) => {
@@ -2316,7 +2373,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     } else {
       // Toggle visibility
       const visibility = newVisibility ? "visible" : "none";
-      ["ruasrekap-lines", "ruasrekap-lines-glow", "ruasrekap-points"].forEach((layerId) => {
+      ["ruasrekap-lines", "ruasrekap-lines-glow", "ruasrekap-points", "ruasrekap-points-hitarea"].forEach((layerId) => {
         if (map.current?.getLayer(layerId)) {
           map.current.setLayoutProperty(layerId, "visibility", visibility);
         }
@@ -2337,7 +2394,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     } else {
       // Toggle visibility
       const visibility = newVisibility ? "visible" : "none";
-      const layers = ["ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow", "ruas-rekap-sto-points"];
+      const layers = ["ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow", "ruas-rekap-sto-points", "ruas-rekap-sto-points-hitarea"];
       layers.forEach((layerId) => {
         if (map.current?.getLayer(layerId)) {
           map.current?.setLayoutProperty(layerId, "visibility", visibility);
@@ -2351,7 +2408,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
     try {
       // Remove existing layers first (order matters!)
-      const layersToRemove = ["ruas-rekap-sto-points", "ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow"];
+      const layersToRemove = ["ruas-rekap-sto-points-hitarea", "ruas-rekap-sto-points", "ruas-rekap-sto-lines", "ruas-rekap-sto-lines-glow"];
       layersToRemove.forEach((layerId) => {
         if (map.current?.getLayer(layerId)) {
           map.current?.removeLayer(layerId);
@@ -2471,7 +2528,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         source: "ruasrekapsto",
         filter: ["==", ["geometry-type"], "Point"],
         paint: {
-          "circle-radius": ["*", ["get", "size"], 1],
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            5, ["*", ["get", "size"], 1],  // At zoom 5 and below, size * 1
+            10, ["*", ["get", "size"], 2]  // At zoom 10 and above, size * 2
+          ],
           "circle-color": "#10B981",
           "circle-stroke-width": 2,
           "circle-stroke-color": "#FFFFFF",
@@ -2479,8 +2542,33 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add click handler for points - Show LinkDetailsPanel and NodeDetailDialog
-      map.current.on("click", "ruas-rekap-sto-points", (e) => {
+      // Add invisible hit area layer on top of points for better click detection
+      map.current.addLayer({
+        id: "ruas-rekap-sto-points-hitarea",
+        type: "circle",
+        source: "ruasrekapsto",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            5, ["*", ["get", "size"], 5],   // At zoom 5 and below, size * 5
+            10, ["*", ["get", "size"], 10]  // At zoom 10 and above, size * 10
+          ],
+          "circle-color": "#10B981",
+          "circle-opacity": 0, // Invisible
+        },
+      });
+
+      // Shared handler function for STO node clicks
+      const handleStoNodeClick = (e: maplibregl.MapLayerMouseEvent) => {
+        // Prevent event from propagating to edge layers below
+        e.preventDefault();
+        if (e.originalEvent) {
+          e.originalEvent.stopPropagation();
+        }
+
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
@@ -2557,10 +2645,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           // Don't auto-show topology drawer, let user click the button
           // setShowTopologyDrawer(true);
         }
-      });
+      };
+
+      // Add click handler for both STO points layer and hit area layer
+      map.current.on("click", "ruas-rekap-sto-points", handleStoNodeClick);
+      map.current.on("click", "ruas-rekap-sto-points-hitarea", handleStoNodeClick);
 
       // Add click handler for lines
       map.current.on("click", "ruas-rekap-sto-lines", (e) => {
+        // Check if there's a node at this location - if yes, ignore edge click
+        const nodeFeatures = map.current!.queryRenderedFeatures(e.point, {
+          layers: ['ruas-rekap-sto-points', 'ruas-rekap-sto-points-hitarea']
+        });
+
+        if (nodeFeatures && nodeFeatures.length > 0) {
+          // There's a node here, let the node handler deal with it
+          return;
+        }
+
         if (e.features && e.features.length > 0) {
           const feature = e.features[0];
           const props = feature.properties;
@@ -2690,8 +2792,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         className: "hover-popup",
       });
 
-      // Add hover handlers for points with popup
-      map.current.on("mouseenter", "ruas-rekap-sto-points", (e) => {
+      // Shared hover enter handler for STO points
+      const handleStoPointsHoverEnter = (e: maplibregl.MapLayerMouseEvent) => {
         map.current!.getCanvas().style.cursor = "pointer";
 
         if (e.features && e.features.length > 0) {
@@ -2727,12 +2829,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
         }
-      });
+      };
 
-      map.current.on("mouseleave", "ruas-rekap-sto-points", () => {
+      // Shared hover leave handler for STO points
+      const handleStoPointsHoverLeave = () => {
         map.current!.getCanvas().style.cursor = "";
         hoverPopup.remove();
-      });
+      };
+
+      // Add hover handlers for both STO points layer and hit area layer
+      map.current.on("mouseenter", "ruas-rekap-sto-points", handleStoPointsHoverEnter);
+      map.current.on("mouseenter", "ruas-rekap-sto-points-hitarea", handleStoPointsHoverEnter);
+      map.current.on("mouseleave", "ruas-rekap-sto-points", handleStoPointsHoverLeave);
+      map.current.on("mouseleave", "ruas-rekap-sto-points-hitarea", handleStoPointsHoverLeave);
 
       // Add hover handlers for lines (edges) with popup
       map.current.on("mouseenter", "ruas-rekap-sto-lines", (e) => {
@@ -4349,6 +4458,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         const zoom = map.current?.getZoom() || 5;
         setCurrentZoom(zoom);
 
+        // Console log current zoom level
+        // eslint-disable-next-line no-console
+        console.log('Current Zoom Level:', zoom.toFixed(2));
+
         // Auto-adjust level based on zoom
         let newLevel: HierarchyLevel = "national";
         if (zoom >= 10) {
@@ -4360,6 +4473,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         }
         if (newLevel !== currentLevel) {
           setCurrentLevel(newLevel);
+          // eslint-disable-next-line no-console
+          console.log('Hierarchy Level Changed to:', newLevel);
         }
       };
 
@@ -4717,8 +4832,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       {/* Link Details Panel */}
       {(() => {
-        // eslint-disable-next-line no-console
-        console.log('LinkDetailsPanel render check:', { showLinkDetails, selectedLink });
+
         return showLinkDetails && selectedLink && (
           <LinkDetailsPanel
             connection={selectedLink}
