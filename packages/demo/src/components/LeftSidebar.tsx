@@ -160,6 +160,43 @@ export function LeftSidebar({
       { value: "trunk_all_metro_rantsel", label: "METRO - RANTSEL", color: "#14B8A6" },
       { value: "trunk_all_metro_twamp", label: "METRO - TWAMP", color: "#F97316" },
       { value: "trunk_all_metro_starlink", label: "METRO - STARLINK", color: "#6366F1" },
+      // PE Layers
+{ value: "trunk_all_pe_spine", label: "PE - SPINE", color: "#1E3A8A" },
+{ value: "trunk_all_pe_teradatin", label: "PE - TERADATIN", color: "#065F46" },
+{ value: "trunk_all_pe_cdn", label: "PE - CDN", color: "#78350F" },
+{ value: "trunk_all_pe_wac", label: "PE - WAC", color: "#7C3AED" },
+{ value: "trunk_all_pe_wag", label: "PE - WAG", color: "#BE185D" },
+
+// PEMOBILE Layers
+{ value: "trunk_all_pemobile_pemobile", label: "PEMOBILE - PEMOBILE", color: "#0F766E" },
+{ value: "trunk_all_pemobile_metro", label: "PEMOBILE - METRO", color: "#1E40AF" },
+{ value: "trunk_all_pemobile_rantsel", label: "PEMOBILE - RANTSEL", color: "#9A3412" },
+{ value: "trunk_all_pemobile_it_agg", label: "PEMOBILE - IT_AGG", color: "#7F1D1D" },
+{ value: "trunk_all_pemobile_cps", label: "PEMOBILE - CPS", color: "#4D7C0F" },
+{ value: "trunk_all_pemobile_blf", label: "PEMOBILE - BLF", color: "#4338CA" },
+{ value: "trunk_all_pemobile_twamp", label: "PEMOBILE - TWAMP", color: "#A16207" },
+
+// PEHSI Layers
+{ value: "trunk_all_pehsi_swc", label: "PEHSI - SWC", color: "#3A0CA3" },
+{ value: "trunk_all_pehsi_ebr", label: "PEHSI - EBR", color: "#7C2D12" },
+{ value: "trunk_all_pehsi_lb", label: "PEHSI - LB", color: "#0369A1" },
+{ value: "trunk_all_pehsi_sig", label: "PEHSI - SIG", color: "#15803D" },
+
+// PETRANSIT Layers
+{ value: "trunk_all_petransit_ebr", label: "PETRANSIT - EBR", color: "#6B21A8" },
+
+// BNG/BRAS Layers
+{ value: "trunk_all_me_bngtsel", label: "ME - BNGTSEL", color: "#9F1239" },
+{ value: "trunk_all_bngtsel_pehsi", label: "BNGTSEL - PEHSI", color: "#0C4A6E" },
+{ value: "trunk_all_bras_pehsi", label: "BRAS - PEHSI", color: "#B45309" },
+
+// ALLOT Layers
+{ value: "trunk_all_allot_pehsi", label: "ALLOT - PEHSI", color: "#14532D" },
+
+// ACCESS Layers
+{ value: "trunk_all_nodeb_metro", label: "NODEB - METRO", color: "#3F6212" },
+{ value: "trunk_all_olt_metro", label: "OLT - METRO", color: "#701A75" },
+
     ];
     
     const searchLower = ruasLayerSearchQuery.toLowerCase().trim();

@@ -371,6 +371,44 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           "trunk_all_metro_rantsel": "/ruas-rekap/trunk_all_metro_rantsel_layer.json",
           "trunk_all_metro_twamp": "/ruas-rekap/trunk_all_metro_twamp_layer.json",
           "trunk_all_metro_starlink": "/ruas-rekap/trunk_all_metro_starlink_layer.json",
+       // PE Layers
+  "trunk_all_pe_spine": "/ruas-rekap/trunk_all_pe_spine_layer.json",
+  "trunk_all_pe_teradatin": "/ruas-rekap/trunk_all_pe_teradatin_layer.json",
+  "trunk_all_pe_cdn": "/ruas-rekap/trunk_all_pe_cdn_layer.json",
+  "trunk_all_pe_wac": "/ruas-rekap/trunk_all_pe_wac_layer.json",
+  "trunk_all_pe_wag": "/ruas-rekap/trunk_all_pe_wag_layer.json",
+
+  // PEMOBILE Layers
+  "trunk_all_pemobile_pemobile": "/ruas-rekap/trunk_all_pemobile_pemobile_layer.json",
+  "trunk_all_pemobile_metro": "/ruas-rekap/trunk_all_pemobile_metro_layer.json",
+  "trunk_all_pemobile_rantsel": "/ruas-rekap/trunk_all_pemobile_rantsel_layer.json",
+  "trunk_all_pemobile_it_agg": "/ruas-rekap/trunk_all_pemobile_it_agg_layer.json",
+  "trunk_all_pemobile_cps": "/ruas-rekap/trunk_all_pemobile_cps_layer.json",
+  "trunk_all_pemobile_blf": "/ruas-rekap/trunk_all_pemobile_blf_layer.json",
+  "trunk_all_pemobile_twamp": "/ruas-rekap/trunk_all_pemobile_twamp_layer.json",
+
+  // PEHSI Layers
+  "trunk_all_pehsi_swc": "/ruas-rekap/trunk_all_pehsi_swc_layer.json",
+  "trunk_all_pehsi_ebr": "/ruas-rekap/trunk_all_pehsi_ebr_layer.json",
+  "trunk_all_pehsi_lb": "/ruas-rekap/trunk_all_pehsi_lb_layer.json",
+  "trunk_all_pehsi_sig": "/ruas-rekap/trunk_all_pehsi_sig_layer.json",
+
+  // PETRANSIT Layers
+  "trunk_all_petransit_ebr": "/ruas-rekap/trunk_all_petransit_ebr_layer.json",
+
+  // BNG/BRAS Layers
+  "trunk_all_me_bngtsel": "/ruas-rekap/trunk_all_me_bngtsel_layer.json",
+  "trunk_all_bngtsel_pehsi": "/ruas-rekap/trunk_all_bngtsel_pehsi_layer.json",
+  "trunk_all_bras_pehsi": "/ruas-rekap/trunk_all_bras_pehsi_layer.json",
+
+  // ALLOT Layers
+  "trunk_all_allot_pehsi": "/ruas-rekap/trunk_all_allot_pehsi_layer.json",
+
+  // ACCESS Layers
+  "trunk_all_nodeb_metro": "/ruas-rekap/trunk_all_nodeb_metro_layer.json",
+  "trunk_all_olt_metro": "/ruas-rekap/trunk_all_olt_metro_layer.json"
+       
+       
         };
 
         const filePath = layerFileMap[selectedRuasLayer] || layerFileMap["tera-tera"];
@@ -1853,6 +1891,36 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         "trunk_all_metro_rantsel": "#14B8A6",    // Teal
         "trunk_all_metro_twamp": "#F97316",      // Orange
         "trunk_all_metro_starlink": "#6366F1",   // Indigo
+        // PE Layers
+        "trunk_all_pe_spine": "#1E3A8A",         // Dark Blue
+        "trunk_all_pe_teradatin": "#065F46",     // Dark Green
+        "trunk_all_pe_cdn": "#78350F",           // Dark Brown
+        "trunk_all_pe_wac": "#7C3AED",           // Purple
+        "trunk_all_pe_wag": "#BE185D",           // Dark Pink
+        // PEMOBILE Layers
+        "trunk_all_pemobile_pemobile": "#0F766E", // Teal
+        "trunk_all_pemobile_metro": "#1E40AF",    // Blue
+        "trunk_all_pemobile_rantsel": "#9A3412",  // Brown
+        "trunk_all_pemobile_it_agg": "#7F1D1D",   // Dark Red
+        "trunk_all_pemobile_cps": "#4D7C0F",      // Green
+        "trunk_all_pemobile_blf": "#4338CA",      // Indigo
+        "trunk_all_pemobile_twamp": "#A16207",    // Amber
+        // PEHSI Layers
+        "trunk_all_pehsi_swc": "#3A0CA3",         // Purple
+        "trunk_all_pehsi_ebr": "#7C2D12",         // Brown
+        "trunk_all_pehsi_lb": "#0369A1",          // Blue
+        "trunk_all_pehsi_sig": "#15803D",         // Green
+        // PETRANSIT Layers
+        "trunk_all_petransit_ebr": "#6B21A8",     // Purple
+        // BNG/BRAS Layers
+        "trunk_all_me_bngtsel": "#9F1239",        // Dark Pink
+        "trunk_all_bngtsel_pehsi": "#0C4A6E",     // Dark Blue
+        "trunk_all_bras_pehsi": "#B45309",        // Orange
+        // ALLOT Layers
+        "trunk_all_allot_pehsi": "#14532D",       // Dark Green
+        // ACCESS Layers
+        "trunk_all_nodeb_metro": "#3F6212",       // Green
+        "trunk_all_olt_metro": "#701A75",         // Purple
       };
       
       const currentLayerColor = layerColors[selectedRuasLayer] || "#3B82F6";
