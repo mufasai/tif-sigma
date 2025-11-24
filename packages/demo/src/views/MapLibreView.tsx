@@ -19,6 +19,7 @@ import { DraggableNetworkHierarchy } from "../components/DraggableNetworkHierarc
 import { LeftSidebar } from "../components/LeftSidebar";
 import { Legend } from "../components/Legend";
 import { LinkDetailsPanel } from "../components/LinkDetailsPanel";
+import { ProfileMenu } from "../components/ProfileMenu";
 import { SettingsPage } from "../components/SettingsPage";
 import Toast, { ToastType } from "../components/Toast";
 import { TopologyDrawer } from "../components/TopologyDrawer";
@@ -4757,6 +4758,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         onFilterClick={handlePlatformFilterClick}
         onClearFilter={handleClearFilter}
       />
+
+      {/* Profile Menu */}
+      <div style={{ position: "fixed", top: "20px", right: "20px", zIndex: 1000 }}>
+        <ProfileMenu
+          username="Admin User"
+          email="admin@infranexia.com"
+        />
+      </div>
 
       {/* Draggable Network Hierarchy Panel */}
       <DraggableNetworkHierarchy

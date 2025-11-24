@@ -211,7 +211,7 @@ export function CompactSearchBar({ onSearch, suggestions = [], platformFilters =
             <FiSearch style={{ width: '16px', height: '16px', color: '#9CA3AF', flexShrink: 0 }} />
             <input
               ref={inputRef}
-              placeholder="Search NE, link, area, witel..."
+              placeholder="Search STO "
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);

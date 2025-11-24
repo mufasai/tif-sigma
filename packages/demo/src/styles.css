@@ -618,3 +618,9 @@ ul > li {
   background: rgba(255, 255, 255, 0.2);
 }
 
+
+
+.maplibregl-ctrl-top-right {
+    right: 0;
+    top: 100px !important;
+}
