@@ -4920,7 +4920,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         />
       )}
 
-      {activeMenu === "layers" && <DataTablePanel elements={capacityData} onClose={() => setActiveMenu("topology")} />}
+      {activeMenu === "layers" && (
+        <DataTablePanel 
+          elements={capacityData} 
+          ruasRekapData={selectedLayer === "ruasrekap" ? ruasRekapData : selectedLayer === "ruasrekapsto" ? ruasRekapStoData : null}
+          selectedRuasLayer={selectedRuasLayer}
+          onClose={() => setActiveMenu("topology")} 
+        />
+      )}
 
       {activeMenu === "analytics" && <AnalyticsPage onClose={() => setActiveMenu("topology")} />}
 

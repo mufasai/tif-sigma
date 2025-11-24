@@ -804,16 +804,15 @@ export function LeftSidebar({
           >
             {!isCollapsed && (
               <div>
-                <div
+                <img
+                  src="/images/infranexia-side.png"
+                  alt="Infranexia"
                   style={{
-                    fontSize: "16px",
-                    fontWeight: "700",
-                    color: "#1F2937",
-                    marginBottom: "2px",
+                    height: "50px",
+                    width: "auto",
+                    objectFit: "contain",
                   }}
-                >
-                  TIF
-                </div>
+                />
                 {/* <div style={{
                 fontSize: '11px',
                 color: '#6B7280',
