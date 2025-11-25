@@ -22,6 +22,9 @@ interface TopologyDrawerProps {
       label?: string;
     };
     topology?: TopologyLink[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    linkDetails?: Array<Record<string, any>>; // Add linkDetails for physical links
+    clickedType?: 'node' | 'edge'; // Add clickedType to know if node was clicked
   };
   onClose: () => void;
 }
@@ -31,9 +34,12 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [activeTab, setActiveTab] = useState<'topology' | 'links'>('topology');
   const drawerRef = useRef<HTMLDivElement>(null);
   const sigmaContainerRef = useRef<HTMLDivElement>(null);
   const sigmaInstanceRef = useRef<Sigma | null>(null);
+  const sigmaLinksContainerRef = useRef<HTMLDivElement>(null);
+  const sigmaLinksInstanceRef = useRef<Sigma | null>(null);
 
   // Initialize position to center bottom on mount
   useEffect(() => {
@@ -90,15 +96,234 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     };
   }, [isDragging, dragOffset]);
 
+  // Initialize Sigma.js for Node Physical Links visualization
+  useEffect(() => {
+    if (!sigmaLinksContainerRef.current || isCollapsed || activeTab !== 'links') return;
+    if (!connection.linkDetails || connection.linkDetails.length === 0) return;
+
+    // Create graph for physical links
+    const graph = new Graph();
+    const nodeSet = new Set<string>();
+    const centerNodeId = connection.nodeData?.id || connection.from;
+    const centerLabel = connection.nodeData?.label || connection.from;
+
+    // Collect all unique nodes from linkDetails
+    connection.linkDetails.forEach((link) => {
+      const sourceId = link.source_node || link.source;
+      const targetId = link.target_node || link.target;
+      if (sourceId) nodeSet.add(sourceId);
+      if (targetId) nodeSet.add(targetId);
+    });
+
+    // Calculate positions in a circular layout
+    const nodes = Array.from(nodeSet);
+    const radius = 3;
+
+    // Add center node (the clicked node)
+    graph.addNode(centerNodeId, {
+      label: centerLabel,
+      x: 0,
+      y: 0,
+      size: 25,
+      color: '#9333ea',
+    });
+
+    // Add other nodes in a circle around the center
+    const otherNodes = nodes.filter(n => n !== centerNodeId);
+    otherNodes.forEach((nodeId, index) => {
+      const angle = (2 * Math.PI * index) / otherNodes.length;
+      const x = radius * Math.cos(angle);
+      const y = radius * Math.sin(angle);
+
+      // Find node label from linkDetails
+      const linkWithNode = connection.linkDetails?.find((link) =>
+        (link.source_node || link.source) === nodeId || (link.target_node || link.target) === nodeId
+      );
+      const nodeLabel = (linkWithNode?.source_node || linkWithNode?.source) === nodeId
+        ? (linkWithNode?.source_label || nodeId)
+        : (linkWithNode?.target_label || nodeId);
+
+      graph.addNode(nodeId, {
+        label: nodeLabel,
+        x,
+        y,
+        size: 18,
+        color: '#3b82f6',
+      });
+    });
+
+    // Add edges from linkDetails (physical links)
+    connection.linkDetails.forEach((link, index) => {
+      const sourceId = link.source_node || link.source;
+      const targetId = link.target_node || link.target;
+      
+      if (!sourceId || !targetId) return;
+
+      const capacity = typeof link.capacity === 'number' ? link.capacity : 0;
+      const capacityGbps = capacity / 1000000000;
+      const capacityLabel = capacityGbps > 0 ? `${capacityGbps.toFixed(1)}G` : '';
+      
+      const utilization = typeof link.utilization === 'number' ? link.utilization : 0;
+
+      try {
+        if (graph.hasNode(sourceId) && graph.hasNode(targetId)) {
+          // Calculate edge size based on capacity
+          const edgeSize = Math.max(1, Math.min(6, capacityGbps / 20));
+
+          // Calculate edge color based on utilization
+          let edgeColor = '#8b5cf6';
+          if (utilization > 80) edgeColor = '#ef4444'; // Red for high utilization
+          else if (utilization > 60) edgeColor = '#f59e0b'; // Orange for medium
+          else if (utilization > 40) edgeColor = '#eab308'; // Yellow
+          else edgeColor = '#10b981'; // Green for low
+
+          // Use unique edge ID to allow multiple edges between same nodes
+          const edgeId = `${sourceId}-${targetId}-${index}`;
+          
+          graph.addEdgeWithKey(edgeId, sourceId, targetId, {
+            size: edgeSize,
+            color: edgeColor,
+            label: capacityLabel,
+            type: 'line',
+          });
+        }
+      } catch (_error) {
+        // Edge might already exist, skip
+      }
+    });
+
+    // Initialize Sigma for physical links
+    try {
+      sigmaLinksInstanceRef.current = new Sigma(graph, sigmaLinksContainerRef.current, {
+        renderEdgeLabels: true,
+        defaultNodeColor: '#999999',
+        defaultEdgeColor: '#CCCCCC',
+        labelSize: 10,
+        labelWeight: '600',
+        labelColor: { color: '#1f2937' },
+        labelRenderedSizeThreshold: 0,
+        labelDensity: 0.07,
+        labelGridCellSize: 150,
+        edgeLabelSize: 8,
+        edgeLabelWeight: '500',
+        edgeLabelColor: { color: '#6b7280' },
+        enableEdgeEvents: true,
+        stagePadding: 30,
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Error initializing Sigma for physical links:', error);
+    }
+
+    return () => {
+      if (sigmaLinksInstanceRef.current) {
+        sigmaLinksInstanceRef.current.kill();
+        sigmaLinksInstanceRef.current = null;
+      }
+    };
+  }, [connection.linkDetails, connection.nodeData, connection.from, isCollapsed, activeTab]);
+
   // Initialize Sigma.js topology visualization
   useEffect(() => {
-    if (!sigmaContainerRef.current || isCollapsed) return;
+    if (!sigmaContainerRef.current || isCollapsed || activeTab !== 'topology') return;
 
     // Create graph
     const graph = new Graph();
 
-    // Check if we have actual topology data
-    if (connection.topology && connection.topology.length > 0) {
+    // Priority 1: Use linkDetails (physical links) if available for node clicks
+    if (connection.clickedType === 'node' && connection.linkDetails && connection.linkDetails.length > 0) {
+      const nodeSet = new Set<string>();
+      const centerNodeId = connection.nodeData?.id || connection.from;
+      const centerLabel = connection.nodeData?.label || connection.from;
+
+      // Collect all unique nodes from linkDetails
+      connection.linkDetails.forEach((link) => {
+        const sourceId = link.source_node || link.source;
+        const targetId = link.target_node || link.target;
+        if (sourceId) nodeSet.add(sourceId);
+        if (targetId) nodeSet.add(targetId);
+      });
+
+      // Calculate positions in a circular layout
+      const nodes = Array.from(nodeSet);
+      const radius = 3;
+
+      // Add center node (the clicked node)
+      graph.addNode(centerNodeId, {
+        label: centerLabel,
+        x: 0,
+        y: 0,
+        size: 25,
+        color: '#9333ea',
+      });
+
+      // Add other nodes in a circle around the center
+      const otherNodes = nodes.filter(n => n !== centerNodeId);
+      otherNodes.forEach((nodeId, index) => {
+        const angle = (2 * Math.PI * index) / otherNodes.length;
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+
+        // Find node label from linkDetails
+        const linkWithNode = connection.linkDetails?.find((link) =>
+          (link.source_node || link.source) === nodeId || (link.target_node || link.target) === nodeId
+        );
+        const nodeLabel = (linkWithNode?.source_node || linkWithNode?.source) === nodeId
+          ? (linkWithNode?.source_label || nodeId)
+          : (linkWithNode?.target_label || nodeId);
+
+        graph.addNode(nodeId, {
+          label: nodeLabel,
+          x,
+          y,
+          size: 18,
+          color: '#3b82f6',
+        });
+      });
+
+      // Add edges from linkDetails (physical links)
+      connection.linkDetails.forEach((link, index) => {
+        const sourceId = link.source_node || link.source;
+        const targetId = link.target_node || link.target;
+        
+        if (!sourceId || !targetId) return;
+
+        const capacity = typeof link.capacity === 'number' ? link.capacity : 0;
+        const capacityGbps = capacity / 1000000000;
+        const capacityLabel = capacityGbps > 0 ? `${capacityGbps.toFixed(1)}G` : '';
+        
+        const utilization = typeof link.utilization === 'number' ? link.utilization : 0;
+
+        try {
+          if (graph.hasNode(sourceId) && graph.hasNode(targetId)) {
+            // Calculate edge size based on capacity
+            const edgeSize = Math.max(1, Math.min(6, capacityGbps / 20));
+
+            // Calculate edge color based on utilization
+            let edgeColor = '#8b5cf6';
+            if (utilization > 80) edgeColor = '#ef4444'; // Red for high utilization
+            else if (utilization > 60) edgeColor = '#f59e0b'; // Orange for medium
+            else if (utilization > 40) edgeColor = '#eab308'; // Yellow
+            else edgeColor = '#10b981'; // Green for low
+
+            // Use unique edge ID to allow multiple edges between same nodes
+            const edgeId = `${sourceId}-${targetId}-${index}`;
+            
+            graph.addEdgeWithKey(edgeId, sourceId, targetId, {
+              size: edgeSize,
+              color: edgeColor,
+              label: capacityLabel,
+              type: 'line',
+            });
+          }
+        } catch (_error) {
+          // Edge might already exist, skip
+        }
+      });
+
+    } 
+    // Priority 2: Check if we have topology data (connected edges)
+    else if (connection.topology && connection.topology.length > 0) {
       // Use actual topology data
       const nodeSet = new Set<string>();
       const nodePositions = new Map<string, { x: number; y: number }>();
@@ -308,19 +533,23 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       });
     }
 
-    // Initialize Sigma
+    // Initialize Sigma with improved label rendering to avoid overlap
     try {
       sigmaInstanceRef.current = new Sigma(graph, sigmaContainerRef.current, {
         renderEdgeLabels: true,
         defaultNodeColor: '#999999',
         defaultEdgeColor: '#CCCCCC',
-        labelSize: 11,
+        labelSize: 10,
         labelWeight: '600',
-        labelColor: { color: '#374151' },
-        edgeLabelSize: 10,
+        labelColor: { color: '#1f2937' },
+        labelRenderedSizeThreshold: 0, // Always render labels
+        labelDensity: 0.07, // Reduce label density significantly to avoid overlap (default is 1)
+        labelGridCellSize: 150, // Increase grid cell size for better spacing (default is 60)
+        edgeLabelSize: 8,
         edgeLabelWeight: '500',
         edgeLabelColor: { color: '#6b7280' },
         enableEdgeEvents: true,
+        stagePadding: 30, // Add padding around the stage
       });
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -333,18 +562,24 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
         sigmaInstanceRef.current = null;
       }
     };
-  }, [connection.from, connection.to, connection.topology, isCollapsed]);
+  }, [connection.from, connection.to, connection.topology, connection.linkDetails, connection.clickedType, isCollapsed, activeTab]);
 
   // Count nodes and links from graph
   const getGraphStats = () => {
-    if (!sigmaInstanceRef.current) {
-      return { nodes: 8, links: 8 };
+    if (activeTab === 'topology' && sigmaInstanceRef.current) {
+      const graph = sigmaInstanceRef.current.getGraph();
+      return {
+        nodes: graph.order,
+        links: graph.size,
+      };
+    } else if (activeTab === 'links' && sigmaLinksInstanceRef.current) {
+      const graph = sigmaLinksInstanceRef.current.getGraph();
+      return {
+        nodes: graph.order,
+        links: graph.size,
+      };
     }
-    const graph = sigmaInstanceRef.current.getGraph();
-    return {
-      nodes: graph.order,
-      links: graph.size,
-    };
+    return { nodes: 8, links: 8 };
   };
 
   const stats = getGraphStats();
@@ -490,69 +725,215 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
           </div>
         </div>
 
-        {/* Topology Visualization */}
-        <div style={{ padding: '16px' }}>
-          <div style={{
-            background: 'linear-gradient(to bottom right, rgba(239, 246, 255, 0.5), rgba(250, 245, 255, 0.5))',
-            borderRadius: '12px',
-            border: '1px solid rgba(229, 231, 235, 0.5)',
-            padding: '16px',
-            height: '400px',
-            position: 'relative',
+        {/* Tabs - Only show if node was clicked and has linkDetails */}
+        {connection.clickedType === 'node' && connection.linkDetails && connection.linkDetails.length > 0 && (
+          <div style={{ 
+            padding: '0 16px',
+            borderBottom: '1px solid rgba(229, 231, 235, 0.5)',
           }}>
-            <div
-              ref={sigmaContainerRef}
-              style={{
-                width: '100%',
-                height: '100%',
-                borderRadius: '8px',
-              }}
-            />
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                onClick={() => setActiveTab('topology')}
+                style={{
+                  padding: '10px 16px',
+                  background: activeTab === 'topology' ? 'rgba(147, 51, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'topology' ? '2px solid #9333ea' : '2px solid transparent',
+                  color: activeTab === 'topology' ? '#9333ea' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'topology') {
+                    e.currentTarget.style.background = 'rgba(243, 244, 246, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'topology') {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                Network Topology
+              </button>
+              <button
+                onClick={() => setActiveTab('links')}
+                style={{
+                  padding: '10px 16px',
+                  background: activeTab === 'links' ? 'rgba(147, 51, 234, 0.1)' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === 'links' ? '2px solid #9333ea' : '2px solid transparent',
+                  color: activeTab === 'links' ? '#9333ea' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                onMouseEnter={(e) => {
+                  if (activeTab !== 'links') {
+                    e.currentTarget.style.background = 'rgba(243, 244, 246, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeTab !== 'links') {
+                    e.currentTarget.style.background = 'transparent';
+                  }
+                }}
+              >
+                Node Physical Links
+                <span style={{
+                  background: activeTab === 'links' ? '#9333ea' : '#9ca3af',
+                  color: 'white',
+                  fontSize: '10px',
+                  fontWeight: '700',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  minWidth: '20px',
+                  textAlign: 'center',
+                }}>
+                  {connection.linkDetails.length}
+                </span>
+              </button>
+            </div>
           </div>
+        )}
 
-          {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px' }}>
+        {/* Topology Visualization - Show when topology tab is active */}
+        {activeTab === 'topology' && (
+          <div style={{ padding: '16px' }}>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.5)',
-              backdropFilter: 'blur(4px)',
-              borderRadius: '8px',
+              background: 'linear-gradient(to bottom right, rgba(239, 246, 255, 0.5), rgba(250, 245, 255, 0.5))',
+              borderRadius: '12px',
               border: '1px solid rgba(229, 231, 235, 0.5)',
-              padding: '8px',
+              padding: '16px',
+              height: '400px',
+              position: 'relative',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                <Network style={{ width: '12px', height: '12px', color: '#2563eb' }} />
-                <span style={{ fontSize: '10px', color: '#6b7280' }}>NODES</span>
-              </div>
-              <div style={{ fontSize: '14px', color: '#111827' }}>{stats.nodes}</div>
+              <div
+                ref={sigmaContainerRef}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '8px',
+                }}
+              />
             </div>
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.5)',
-              backdropFilter: 'blur(4px)',
-              borderRadius: '8px',
-              border: '1px solid rgba(229, 231, 235, 0.5)',
-              padding: '8px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                <GitBranch style={{ width: '12px', height: '12px', color: '#9333ea' }} />
-                <span style={{ fontSize: '10px', color: '#6b7280' }}>LINKS</span>
+
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px' }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                border: '1px solid rgba(229, 231, 235, 0.5)',
+                padding: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                  <Network style={{ width: '12px', height: '12px', color: '#2563eb' }} />
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>NODES</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#111827' }}>{stats.nodes}</div>
               </div>
-              <div style={{ fontSize: '14px', color: '#111827' }}>{stats.links}</div>
-            </div>
-            <div style={{
-              background: 'rgba(255, 255, 255, 0.5)',
-              backdropFilter: 'blur(4px)',
-              borderRadius: '8px',
-              border: '1px solid rgba(229, 231, 235, 0.5)',
-              padding: '8px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                <Activity style={{ width: '12px', height: '12px', color: '#059669' }} />
-                <span style={{ fontSize: '10px', color: '#6b7280' }}>STATUS</span>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                border: '1px solid rgba(229, 231, 235, 0.5)',
+                padding: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                  <GitBranch style={{ width: '12px', height: '12px', color: '#9333ea' }} />
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>LINKS</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#111827' }}>{stats.links}</div>
               </div>
-              <div style={{ fontSize: '14px', color: '#059669' }}>All Active</div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                border: '1px solid rgba(229, 231, 235, 0.5)',
+                padding: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                  <Activity style={{ width: '12px', height: '12px', color: '#059669' }} />
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>STATUS</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#059669' }}>All Active</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Node Physical Links Visualization - Show when links tab is active */}
+        {activeTab === 'links' && connection.linkDetails && connection.linkDetails.length > 0 && (
+          <div style={{ padding: '16px' }}>
+            <div style={{
+              background: 'linear-gradient(to bottom right, rgba(239, 246, 255, 0.5), rgba(250, 245, 255, 0.5))',
+              borderRadius: '12px',
+              border: '1px solid rgba(229, 231, 235, 0.5)',
+              padding: '16px',
+              height: '400px',
+              position: 'relative',
+            }}>
+              <div
+                ref={sigmaLinksContainerRef}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: '8px',
+                }}
+              />
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px' }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                border: '1px solid rgba(229, 231, 235, 0.5)',
+                padding: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                  <Network style={{ width: '12px', height: '12px', color: '#2563eb' }} />
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>NODES</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#111827' }}>{stats.nodes}</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                border: '1px solid rgba(229, 231, 235, 0.5)',
+                padding: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                  <GitBranch style={{ width: '12px', height: '12px', color: '#9333ea' }} />
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>PHYSICAL LINKS</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#111827' }}>{stats.links}</div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(4px)',
+                borderRadius: '8px',
+                border: '1px solid rgba(229, 231, 235, 0.5)',
+                padding: '8px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+                  <Activity style={{ width: '12px', height: '12px', color: '#059669' }} />
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>STATUS</span>
+                </div>
+                <div style={{ fontSize: '14px', color: '#059669' }}>All Active</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
