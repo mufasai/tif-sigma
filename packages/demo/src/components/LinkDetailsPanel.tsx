@@ -69,6 +69,7 @@ const generateLinkDetails = (connection: LinkDetailsPanelProps['connection']): L
 };
 
 export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopologyVisible = false }: LinkDetailsPanelProps) {
+  console.log("{{testtestest}}",connection)
   const linkDetails = generateLinkDetails(connection);
   const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
   const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
@@ -544,25 +545,9 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                              <div style={{
-                                width: '60px',
-                                height: '6px',
-                                background: '#E5E7EB',
-                                borderRadius: '3px',
-                                overflow: 'hidden'
-                              }}>
-                                <div
-                                  style={{
-                                    height: '100%',
-                                    width: `${Math.min(parseFloat(utilization), 100)}%`,
-                                    background: parseFloat(utilization) > 80 ? '#EF4444' : parseFloat(utilization) > 60 ? '#F59E0B' : '#10B981',
-                                    borderRadius: '3px',
-                                    transition: 'width 0.3s ease'
-                                  }}
-                                />
-                              </div>
+                        
                               <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
-                                {utilization}%
+                                {utilization}
                               </span>
                             </div>
                           </td>
@@ -630,7 +615,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                               borderRadius: '3px',
                               overflow: 'hidden'
                             }}>
-                              <div
+                              {/* <div
                                 style={{
                                   height: '100%',
                                   width: `${link.utilization}%`,
@@ -638,7 +623,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                                   borderRadius: '3px',
                                   transition: 'width 0.3s ease'
                                 }}
-                              />
+                              /> */}
                             </div>
                             <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
                               {link.utilization}%

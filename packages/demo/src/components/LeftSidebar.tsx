@@ -1009,7 +1009,7 @@ export function LeftSidebar({
                     autoComplete="off"
                     autoFocus={false}
                     style={{
-                      width: "100%",
+                      width: "91%",
                       padding: "8px 10px",
                       borderRadius: "8px",
                       border: "1px solid rgba(139, 92, 246, 0.2)",

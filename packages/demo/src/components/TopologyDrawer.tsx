@@ -126,28 +126,69 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     // Create graph for physical links
     const graph = new Graph();
     const nodeSet = new Set<string>();
-    const centerNodeId = connection.nodeData?.id || connection.from;
-    const centerLabel = connection.nodeData?.label || connection.from;
+    const nodeInfo = new Map<string, { label: string; peran?: string; vendor?: string }>();
 
-    // Collect all unique nodes from linkDetails
+    // Collect all unique nodes from linkDetails with their metadata
     connection.linkDetails.forEach((link) => {
       const sourceId = link.source_node || link.source;
       const targetId = link.target_node || link.target;
-      if (sourceId) nodeSet.add(sourceId);
-      if (targetId) nodeSet.add(targetId);
+      
+      if (sourceId) {
+        nodeSet.add(sourceId);
+        if (!nodeInfo.has(sourceId)) {
+          nodeInfo.set(sourceId, {
+            label: sourceId, // Use node ID as label, not STO label
+            peran: link.source_peran,
+            vendor: link.source_vendor,
+          });
+        }
+      }
+      
+      if (targetId) {
+        nodeSet.add(targetId);
+        if (!nodeInfo.has(targetId)) {
+          nodeInfo.set(targetId, {
+            label: targetId, // Use node ID as label, not STO label
+            peran: link.target_peran,
+            vendor: link.target_vendor,
+          });
+        }
+      }
     });
 
-    // Calculate positions in a circular layout
     const nodes = Array.from(nodeSet);
+    
+    // Determine center node - prioritize the clicked node
+    let centerNodeId = connection.nodeData?.id || connection.from;
+    
+    // If centerNodeId is not in the nodeSet, use the first node
+    if (!nodeSet.has(centerNodeId) && nodes.length > 0) {
+      centerNodeId = nodes[0];
+    }
+
+    const centerInfo = nodeInfo.get(centerNodeId) || { label: centerNodeId };
+
+    // Calculate positions in a circular layout
     const radius = 3;
 
-    // Add center node (the clicked node)
+    // Determine node color based on peran (role)
+    const getNodeColor = (peran?: string): string => {
+      if (!peran) return '#3b82f6';
+      const peranLower = peran.toLowerCase();
+      if (peranLower.includes('tera')) return '#dc2626'; // Red for TERA
+      if (peranLower.includes('metro')) return '#ea580c'; // Orange for METRO
+      if (peranLower.includes('aggregation') || peranLower.includes('agg')) return '#8b5cf6'; // Purple for AGG
+      if (peranLower.includes('access') || peranLower.includes('acc')) return '#10b981'; // Green for ACCESS
+      return '#3b82f6'; // Default blue
+    };
+
+    // Add center node (the clicked node or first node)
     graph.addNode(centerNodeId, {
-      label: centerLabel,
+      label: centerInfo.label,
       x: 0,
       y: 0,
       size: 25,
-      color: '#9333ea',
+      color: '#9333ea', // Purple for center node
     });
 
     // Add other nodes in a circle around the center
@@ -157,55 +198,82 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       const x = radius * Math.cos(angle);
       const y = radius * Math.sin(angle);
 
-      // Find node label from linkDetails
-      const linkWithNode = connection.linkDetails?.find((link) =>
-        (link.source_node || link.source) === nodeId || (link.target_node || link.target) === nodeId
-      );
-      const nodeLabel = (linkWithNode?.source_node || linkWithNode?.source) === nodeId
-        ? (linkWithNode?.source_label || nodeId)
-        : (linkWithNode?.target_label || nodeId);
+      const info = nodeInfo.get(nodeId) || { label: nodeId };
 
       graph.addNode(nodeId, {
-        label: nodeLabel,
+        label: info.label,
         x,
         y,
         size: 18,
-        color: '#3b82f6',
+        color: getNodeColor(info.peran),
       });
     });
 
-    // Add edges from linkDetails (physical links)
-    connection.linkDetails.forEach((link, index) => {
+    // Group edges by source-target-layer to handle multiple physical links per layer
+    const edgeGroups = new Map<string, typeof connection.linkDetails>();
+    
+    connection.linkDetails.forEach((link) => {
       const sourceId = link.source_node || link.source;
       const targetId = link.target_node || link.target;
+      const layer = link.layer || link.trunk_layer || 'unknown';
+      
+      if (!sourceId || !targetId) return;
+      
+      // Create a consistent key with layer information
+      const nodeKey = sourceId < targetId 
+        ? `${sourceId}-${targetId}` 
+        : `${targetId}-${sourceId}`;
+      const key = `${nodeKey}|${layer}`;
+      
+      if (!edgeGroups.has(key)) {
+        edgeGroups.set(key, []);
+      }
+      edgeGroups.get(key)?.push(link);
+    });
+
+    // Add edges with aggregated information per layer
+    edgeGroups.forEach((links, key) => {
+      const firstLink = links[0];
+      const sourceId = firstLink.source_node || firstLink.source;
+      const targetId = firstLink.target_node || firstLink.target;
+      const layer = firstLink.layer || firstLink.trunk_layer || 'unknown';
       
       if (!sourceId || !targetId) return;
 
-      const capacity = typeof link.capacity === 'number' ? link.capacity : 0;
-      const capacityGbps = capacity / 1000000000;
+      // Calculate total capacity for this layer
+      const totalCapacity = links.reduce((sum, link) => {
+        const capacity = typeof link.capacity === 'number' ? link.capacity : 0;
+        return sum + capacity;
+      }, 0);
+
+      const capacityGbps = totalCapacity / 1000000000;
       const capacityLabel = capacityGbps > 0 ? `${capacityGbps.toFixed(1)}G` : '';
       
-      const utilization = typeof link.utilization === 'number' ? link.utilization : 0;
+      // Add link count and layer to label
+      const linkCountLabel = links.length > 1 ? ` (${links.length}x)` : '';
+      const layerLabel = layer !== 'unknown' ? `\n${layer}` : '';
+      const fullLabel = `${capacityLabel}${linkCountLabel}${layerLabel}`;
 
       try {
         if (graph.hasNode(sourceId) && graph.hasNode(targetId)) {
-          // Calculate edge size based on capacity
-          const edgeSize = Math.max(1, Math.min(6, capacityGbps / 20));
+          // Calculate edge size based on total capacity
+          const edgeSize = Math.max(2, Math.min(8, capacityGbps / 20));
 
-          // Calculate edge color based on utilization
-          let edgeColor = '#8b5cf6';
-          if (utilization > 80) edgeColor = '#ef4444'; // Red for high utilization
-          else if (utilization > 60) edgeColor = '#f59e0b'; // Orange for medium
-          else if (utilization > 40) edgeColor = '#eab308'; // Yellow
-          else edgeColor = '#10b981'; // Green for low
-
-          // Use unique edge ID to allow multiple edges between same nodes
-          const edgeId = `${sourceId}-${targetId}-${index}`;
+          // Calculate edge color based on layer type only
+          let edgeColor = '#8b5cf6'; // Default purple
+          const layerLower = layer.toLowerCase();
           
-          graph.addEdgeWithKey(edgeId, sourceId, targetId, {
+          // Color by layer
+          if (layerLower.includes('tera')) edgeColor = '#dc2626'; // Red for TERA
+          else if (layerLower.includes('metro')) edgeColor = '#ea580c'; // Orange for METRO
+          else if (layerLower.includes('agg')) edgeColor = '#8b5cf6'; // Purple for AGG
+          else if (layerLower.includes('access')) edgeColor = '#10b981'; // Green for ACCESS
+          else edgeColor = '#6b7280'; // Gray for unknown
+
+          graph.addEdgeWithKey(key, sourceId, targetId, {
             size: edgeSize,
             color: edgeColor,
-            label: capacityLabel,
+            label: fullLabel,
             type: 'line',
           });
         }
@@ -506,9 +574,13 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       };
     } else if (activeTab === 'links' && sigmaLinksInstanceRef.current) {
       const graph = sigmaLinksInstanceRef.current.getGraph();
+      // For physical links, show both aggregated links and total physical links
+      const aggregatedLinks = graph.size;
+      const physicalLinks = connection.linkDetails?.length || 0;
       return {
         nodes: graph.order,
-        links: graph.size,
+        links: aggregatedLinks,
+        physicalLinks: physicalLinks,
       };
     }
     return { nodes: 8, links: 8 };
@@ -846,7 +918,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                   <GitBranch style={{ width: '12px', height: '12px', color: '#9333ea' }} />
-                  <span style={{ fontSize: '10px', color: '#6b7280' }}>PHYSICAL LINKS</span>
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>AGGREGATED</span>
                 </div>
                 <div style={{ fontSize: '14px', color: '#111827' }}>{stats.links}</div>
               </div>
@@ -859,9 +931,46 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
                   <Activity style={{ width: '12px', height: '12px', color: '#059669' }} />
-                  <span style={{ fontSize: '10px', color: '#6b7280' }}>STATUS</span>
+                  <span style={{ fontSize: '10px', color: '#6b7280' }}>PHYSICAL</span>
                 </div>
-                <div style={{ fontSize: '14px', color: '#059669' }}>All Active</div>
+                <div style={{ fontSize: '14px', color: '#059669' }}>{stats.physicalLinks || stats.links}</div>
+              </div>
+            </div>
+
+            {/* Legend for link colors by layer */}
+            <div style={{
+              marginTop: '12px',
+              padding: '12px',
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(4px)',
+              borderRadius: '8px',
+              border: '1px solid rgba(229, 231, 235, 0.5)',
+            }}>
+              <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: '600', marginBottom: '8px' }}>
+                LAYER COLOR LEGEND
+              </div>
+              
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ width: '20px', height: '4px', background: '#dc2626', borderRadius: '2px' }} />
+                  <span style={{ fontSize: '10px', color: '#374151', fontWeight: '500' }}>TERA</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ width: '20px', height: '4px', background: '#ea580c', borderRadius: '2px' }} />
+                  <span style={{ fontSize: '10px', color: '#374151', fontWeight: '500' }}>METRO</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ width: '20px', height: '4px', background: '#8b5cf6', borderRadius: '2px' }} />
+                  <span style={{ fontSize: '10px', color: '#374151', fontWeight: '500' }}>AGGREGATION</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ width: '20px', height: '4px', background: '#10b981', borderRadius: '2px' }} />
+                  <span style={{ fontSize: '10px', color: '#374151', fontWeight: '500' }}>ACCESS</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ width: '20px', height: '4px', background: '#6b7280', borderRadius: '2px' }} />
+                  <span style={{ fontSize: '10px', color: '#374151', fontWeight: '500' }}>Unknown</span>
+                </div>
               </div>
             </div>
           </div>
