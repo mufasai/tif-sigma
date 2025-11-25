@@ -4751,7 +4751,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       </div>
 
       {/* Topology Test Button */}
-      <div style={{ position: "fixed", top: "35px", right: "135px", zIndex: 1000 }}>
+      {/* <div style={{ position: "fixed", top: "35px", right: "135px", zIndex: 1000 }}>
         <button
           onClick={() => setShowTopologyTest(true)}
           style={{
@@ -4794,7 +4794,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           </svg>
           Topology Test
         </button>
-      </div>
+      </div> */}
 
       {/* Draggable Network Hierarchy Panel */}
       <DraggableNetworkHierarchy
