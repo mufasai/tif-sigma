@@ -498,26 +498,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       map.current = new maplibregl.Map({
         container: mapContainer.current,
-        style: {
-          version: 8,
-          sources: {
-            "osm-tiles": {
-              type: "raster",
-              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-              tileSize: 256,
-              attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            },
-          },
-          layers: [
-            {
-              id: "osm-tiles-layer",
-              type: "raster",
-              source: "osm-tiles",
-              minzoom: 0,
-              maxzoom: 19,
-            },
-          ],
-        },
+        style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=4Iyrc6TBGKphNJNy3iTH',
         center: [117.4, -0.8], // Center of Indonesia
         zoom: 5,
       });
