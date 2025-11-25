@@ -332,10 +332,10 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
         <div style={{
           flex: 1,
           overflow: 'auto',
-          padding: '20px',
+          padding: '10px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px'
+          gap: '10px'
         }}>
 
           {/* Alerts Section */}

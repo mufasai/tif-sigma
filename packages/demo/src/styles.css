@@ -1,5 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=Lora&family=Public+Sans:ital@0;1&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap");
+/* @import url("https://fonts.googleapis.com/css2?family=Lora&family=Public+Sans:ital@0;1&display=swap"); */
+/* @import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap"); */
+@import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@200..900&family=Outfit:wght@100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
 /**
  * VARIABLES:
@@ -18,20 +19,29 @@
   --stage-padding: 8px;
   --panels-width: 350px;
   --border-radius: 3px;
+  --font-family: 'Outfit', sans-serif;
 }
 
 /**
  * BASE STYLES:
  * ************
  */
+* {
+  font-family: 'Outfit', sans-serif !important;
+}
+
 body {
-  font-family: "Public Sans", sans-serif;
+  font-family: 'Outfit', sans-serif;
   font-size: 0.9em;
   overflow: hidden;
 }
 h1,
-h2 {
-  font-family: Lora, serif;
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Outfit', sans-serif;
 }
 h2 {
   font-size: 1.3em;
@@ -152,7 +162,7 @@ button.btn {
   border-radius: var(--border-radius);
   padding: 0.3em 0.5em;
   font-size: 1em;
-  font-family: Lato, sans-serif;
+  font-family: 'Outfit', sans-serif;
   cursor: pointer;
 }
 button.btn:hover {
@@ -283,7 +293,7 @@ ul > li {
   border-radius: var(--border-radius);
   margin-bottom: 0.5em;
   padding: 1em 1em 1em 3em;
-  font-family: Lato, sans-serif;
+  font-family: 'Outfit', sans-serif;
   font-size: 1em;
 }
 .search-wrapper > .icon {
@@ -415,7 +425,7 @@ ul > li {
   padding: 1em;
   border: 1px solid var(--light-grey);
   border-radius: var(--border-radius);
-  font-family: "Courier New", monospace;
+  font-family: 'Outfit', sans-serif;
   font-size: 0.9em;
   resize: vertical;
   outline: none;
@@ -451,7 +461,7 @@ ul > li {
   border-radius: var(--border-radius);
   border: none;
   font-size: 1em;
-  font-family: "Public Sans", sans-serif;
+  font-family: 'Outfit', sans-serif;
   cursor: pointer;
   transition: var(--transition);
 }
@@ -497,7 +507,7 @@ ul > li {
   border-radius: var(--border-radius);
   cursor: pointer;
   font-size: 1em;
-  font-family: "Public Sans", sans-serif;
+  font-family: 'Outfit', sans-serif;
   transition: var(--transition);
   border: none;
 }

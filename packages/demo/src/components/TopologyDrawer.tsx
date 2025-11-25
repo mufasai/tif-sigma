@@ -2,6 +2,7 @@ import { X, ChevronLeft, ChevronRight, Network, GitBranch, Activity, Move } from
 import React, { useState, useRef, useEffect } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
+import { NodeDisplayData, PartialButFor } from 'sigma/types';
 
 interface TopologyLink {
   source: string;
@@ -40,6 +41,27 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
   const sigmaInstanceRef = useRef<Sigma | null>(null);
   const sigmaLinksContainerRef = useRef<HTMLDivElement>(null);
   const sigmaLinksInstanceRef = useRef<Sigma | null>(null);
+
+  // Custom node label renderer to position labels diagonally
+  const drawLabel = (
+    context: CanvasRenderingContext2D,
+    data: PartialButFor<NodeDisplayData, 'x' | 'y' | 'size' | 'label' | 'color'>,
+    settings: any
+  ): void => {
+    if (!data.label) return;
+
+    const size = settings.labelSize;
+    const weight = settings.labelWeight;
+
+    context.fillStyle = '#1f2937';
+    context.font = `${weight} ${size}px 'Outfit', sans-serif`;
+
+    // Position label diagonally (top-right of node)
+    const offsetX = data.size + 8;
+    const offsetY = -data.size - 4;
+
+    context.fillText(data.label, data.x + offsetX, data.y + offsetY);
+  };
 
   // Initialize position to center bottom on mount
   useEffect(() => {
@@ -197,18 +219,19 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       sigmaLinksInstanceRef.current = new Sigma(graph, sigmaLinksContainerRef.current, {
         renderEdgeLabels: true,
         defaultNodeColor: '#999999',
-        defaultEdgeColor: '#CCCCCC',
-        labelSize: 10,
+        defaultEdgeColor: '#FFFFFF',
+        labelSize: 12,
         labelWeight: '600',
         labelColor: { color: '#1f2937' },
         labelRenderedSizeThreshold: 0,
-        labelDensity: 0.07,
-        labelGridCellSize: 150,
-        edgeLabelSize: 8,
+        labelDensity: 1,
+        labelGridCellSize: 60,
+        edgeLabelSize: 9,
         edgeLabelWeight: '500',
         edgeLabelColor: { color: '#6b7280' },
         enableEdgeEvents: true,
-        stagePadding: 30,
+        stagePadding: 60,
+        defaultDrawNodeLabel: drawLabel,
       });
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -230,100 +253,8 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     // Create graph
     const graph = new Graph();
 
-    // Priority 1: Use linkDetails (physical links) if available for node clicks
-    if (connection.clickedType === 'node' && connection.linkDetails && connection.linkDetails.length > 0) {
-      const nodeSet = new Set<string>();
-      const centerNodeId = connection.nodeData?.id || connection.from;
-      const centerLabel = connection.nodeData?.label || connection.from;
-
-      // Collect all unique nodes from linkDetails
-      connection.linkDetails.forEach((link) => {
-        const sourceId = link.source_node || link.source;
-        const targetId = link.target_node || link.target;
-        if (sourceId) nodeSet.add(sourceId);
-        if (targetId) nodeSet.add(targetId);
-      });
-
-      // Calculate positions in a circular layout
-      const nodes = Array.from(nodeSet);
-      const radius = 3;
-
-      // Add center node (the clicked node)
-      graph.addNode(centerNodeId, {
-        label: centerLabel,
-        x: 0,
-        y: 0,
-        size: 25,
-        color: '#9333ea',
-      });
-
-      // Add other nodes in a circle around the center
-      const otherNodes = nodes.filter(n => n !== centerNodeId);
-      otherNodes.forEach((nodeId, index) => {
-        const angle = (2 * Math.PI * index) / otherNodes.length;
-        const x = radius * Math.cos(angle);
-        const y = radius * Math.sin(angle);
-
-        // Find node label from linkDetails
-        const linkWithNode = connection.linkDetails?.find((link) =>
-          (link.source_node || link.source) === nodeId || (link.target_node || link.target) === nodeId
-        );
-        const nodeLabel = (linkWithNode?.source_node || linkWithNode?.source) === nodeId
-          ? (linkWithNode?.source_label || nodeId)
-          : (linkWithNode?.target_label || nodeId);
-
-        graph.addNode(nodeId, {
-          label: nodeLabel,
-          x,
-          y,
-          size: 18,
-          color: '#3b82f6',
-        });
-      });
-
-      // Add edges from linkDetails (physical links)
-      connection.linkDetails.forEach((link, index) => {
-        const sourceId = link.source_node || link.source;
-        const targetId = link.target_node || link.target;
-        
-        if (!sourceId || !targetId) return;
-
-        const capacity = typeof link.capacity === 'number' ? link.capacity : 0;
-        const capacityGbps = capacity / 1000000000;
-        const capacityLabel = capacityGbps > 0 ? `${capacityGbps.toFixed(1)}G` : '';
-        
-        const utilization = typeof link.utilization === 'number' ? link.utilization : 0;
-
-        try {
-          if (graph.hasNode(sourceId) && graph.hasNode(targetId)) {
-            // Calculate edge size based on capacity
-            const edgeSize = Math.max(1, Math.min(6, capacityGbps / 20));
-
-            // Calculate edge color based on utilization
-            let edgeColor = '#8b5cf6';
-            if (utilization > 80) edgeColor = '#ef4444'; // Red for high utilization
-            else if (utilization > 60) edgeColor = '#f59e0b'; // Orange for medium
-            else if (utilization > 40) edgeColor = '#eab308'; // Yellow
-            else edgeColor = '#10b981'; // Green for low
-
-            // Use unique edge ID to allow multiple edges between same nodes
-            const edgeId = `${sourceId}-${targetId}-${index}`;
-            
-            graph.addEdgeWithKey(edgeId, sourceId, targetId, {
-              size: edgeSize,
-              color: edgeColor,
-              label: capacityLabel,
-              type: 'line',
-            });
-          }
-        } catch (_error) {
-          // Edge might already exist, skip
-        }
-      });
-
-    } 
-    // Priority 2: Check if we have topology data (connected edges)
-    else if (connection.topology && connection.topology.length > 0) {
+    // Use topology data (aggregated network topology)
+    if (connection.topology && connection.topology.length > 0) {
       // Use actual topology data
       const nodeSet = new Set<string>();
       const nodePositions = new Map<string, { x: number; y: number }>();
@@ -539,17 +470,18 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
         renderEdgeLabels: true,
         defaultNodeColor: '#999999',
         defaultEdgeColor: '#CCCCCC',
-        labelSize: 10,
+        labelSize: 12,
         labelWeight: '600',
         labelColor: { color: '#1f2937' },
         labelRenderedSizeThreshold: 0, // Always render labels
-        labelDensity: 0.07, // Reduce label density significantly to avoid overlap (default is 1)
-        labelGridCellSize: 150, // Increase grid cell size for better spacing (default is 60)
-        edgeLabelSize: 8,
+        labelDensity: 1, // Show all labels with custom positioning
+        labelGridCellSize: 60,
+        edgeLabelSize: 9,
         edgeLabelWeight: '500',
         edgeLabelColor: { color: '#6b7280' },
         enableEdgeEvents: true,
-        stagePadding: 30, // Add padding around the stage
+        stagePadding: 60, // Add padding around the stage
+        defaultDrawNodeLabel: drawLabel,
       });
     } catch (error) {
       // eslint-disable-next-line no-console
