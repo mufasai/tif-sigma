@@ -23,6 +23,7 @@ import { ProfileMenu } from "../components/ProfileMenu";
 import { SettingsPage } from "../components/SettingsPage";
 import Toast, { ToastType } from "../components/Toast";
 import { TopologyDrawer } from "../components/TopologyDrawer";
+import { TopologyTestDrawer } from "../components/TopologyTestDrawer";
 // eslint-disable-next-line import/extensions
 import { kabupatenData } from "../data/kabupaten.data";
 // eslint-disable-next-line import/extensions
@@ -165,6 +166,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       metadata?: Record<string, any>;
     }>
   >([]);
+  const [showTopologyTest, setShowTopologyTest] = useState(false);
 
   // const handleClose = () => {
   //   if (onClose) {
@@ -4748,6 +4750,52 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         />
       </div>
 
+      {/* Topology Test Button */}
+      <div style={{ position: "fixed", top: "35px", right: "135px", zIndex: 1000 }}>
+        <button
+          onClick={() => setShowTopologyTest(true)}
+          style={{
+            background: "linear-gradient(135deg, rgba(147, 51, 234, 0.9), rgba(139, 92, 246, 0.9))",
+            backdropFilter: "blur(12px)",
+            borderRadius: "12px",
+            boxShadow: "0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            cursor: "pointer",
+            transition: "all 0.2s",
+            color: "#ffffff",
+            fontSize: "13px",
+            fontWeight: "600",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 20px 25px -5px rgba(147, 51, 234, 0.4), 0 10px 10px -5px rgba(147, 51, 234, 0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 10px 15px -3px rgba(147, 51, 234, 0.3), 0 4px 6px -2px rgba(147, 51, 234, 0.2)";
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+            <path d="M22 12A10 10 0 0 0 12 2v10z" />
+          </svg>
+          Topology Test
+        </button>
+      </div>
+
       {/* Draggable Network Hierarchy Panel */}
       <DraggableNetworkHierarchy
         currentLevel={currentLevel}
@@ -5021,6 +5069,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             setShowTopologyDrawer(false);
             setTopologyConnection(null);
           }}
+        />
+      )}
+
+      {/* Topology Test Drawer */}
+      {showTopologyTest && (
+        <TopologyTestDrawer
+          onClose={() => setShowTopologyTest(false)}
         />
       )}
     </div>
