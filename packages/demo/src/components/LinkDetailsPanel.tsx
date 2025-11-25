@@ -72,7 +72,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
   const linkDetails = generateLinkDetails(connection);
   const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
   const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
-  
+
   // Helper function to format capacity with K suffix for thousands
   const formatCapacity = (gbps: number): string => {
     if (gbps >= 1000) {
@@ -80,17 +80,17 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
     }
     return `${gbps.toFixed(2)} Gbps`;
   };
-  
+
   // Calculate total capacity - prioritize linkDetails if available
   let totalCapacity: string;
-  
+
   if (connection.linkDetails && connection.linkDetails.length > 0) {
     // Sum all capacities from linkDetails and convert to Gbps
     const totalCapacityBps = connection.linkDetails.reduce((sum, detail) => {
       const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
       return sum + capacity;
     }, 0);
-    
+
     if (totalCapacityBps > 0) {
       const totalGbps = totalCapacityBps / 1000000000;
       totalCapacity = formatCapacity(totalGbps);
@@ -102,7 +102,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
     // No linkDetails, use provided totalCapacity or fallback
     totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
   }
-  
+
   const avgLatency = linkDetails.reduce((sum, l) => sum + parseFloat(l.latency), 0) / linkDetails.length;
   const avgPacketLoss = linkDetails.reduce((sum, l) => sum + parseFloat(l.packetLoss), 0) / linkDetails.length;
 
@@ -138,26 +138,28 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
       <div style={{
         background: `linear-gradient(135deg, ${color}15, ${color}08)`,
         border: `1px solid ${color}25`,
-        borderRadius: '12px',
-        padding: '12px',
+        borderRadius: '8px',
+        padding: '8px 10px',
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        gap: '8px'
+        gap: '8px',
+        flex: 1,
+        minWidth: '0'
       }}>
         <div style={{
           background: `linear-gradient(135deg, ${color}25, ${color}15)`,
-          borderRadius: '8px',
-          padding: '8px',
+          borderRadius: '6px',
+          padding: '6px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          flexShrink: 0
         }}>
-          <Icon style={{ width: '16px', height: '16px', color }} />
+          <Icon style={{ width: '14px', height: '14px', color }} />
         </div>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: '500' }}>{label}</div>
-          <div style={{ fontSize: '18px', color: '#1F2937', fontWeight: '700' }}>{value}</div>
+        <div style={{ flex: 1, minWidth: '0' }}>
+          <div style={{ fontSize: '9px', color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>{label}</div>
+          <div style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
         </div>
       </div>
     );
@@ -186,6 +188,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
         {/* Header */}
         <div style={{
           padding: '20px',
+          paddingBottom: '1px',
           borderBottom: '1px solid rgba(0,0,0,0.05)'
         }}>
           <div style={{
@@ -323,49 +326,104 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               </button>
             </div>
           </div>
-
-          {/* Summary Stats Grid */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '12px'
-          }}>
-            <StatCard
-              icon={Zap}
-              label="CAPACITY"
-              value={totalCapacity}
-              color="#4F46E5"
-            />
-            <StatCard
-              icon={TrendingUp}
-              label="AVG UTIL"
-              value={`${avgUtilization.toFixed(0)}%`}
-              color={avgUtilization > 80 ? '#EF4444' : avgUtilization > 60 ? '#F59E0B' : '#10B981'}
-            />
-            <StatCard
-              icon={Activity}
-              label="LINKS"
-              value={`${activeLinks}/${linkDetails.length}`}
-              color="#8B5CF6"
-            />
-            <StatCard
-              icon={Clock}
-              label="LATENCY"
-              value={`${avgLatency.toFixed(1)}ms`}
-              color="#06B6D4"
-            />
-          </div>
         </div>
 
         {/* Content */}
         <div style={{
           flex: 1,
           overflow: 'auto',
-          padding: '20px',
+          padding: '10px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px'
+          gap: '10px'
         }}>
+
+          {/* Alerts Section */}
+          <NeumorphicCard>
+            <h4 style={{
+              margin: '0 0 12px 0',
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#1F2937',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <AlertTriangle style={{ width: '16px', height: '16px', color: '#F59E0B' }} />
+              Recent Alerts
+            </h4>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {avgUtilization > 80 && (
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: '#FEF3C7',
+                  border: '1px solid #FDE68A',
+                  fontSize: '12px',
+                  color: '#92400E'
+                }}>
+                  <strong>Warning:</strong> High utilization detected ({avgUtilization.toFixed(0)}%) at {new Date().toLocaleTimeString()}
+                </div>
+              )}
+              <div style={{
+                padding: '8px 12px',
+                borderRadius: '8px',
+                background: '#DBEAFE',
+                border: '1px solid #BFDBFE',
+                fontSize: '12px',
+                color: '#1E40AF'
+              }}>
+                <strong>Info:</strong> Scheduled maintenance window: Sunday 02:00-04:00 WIB
+              </div>
+              {Math.random() > 0.5 && (
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: '#D1FAE5',
+                  border: '1px solid #A7F3D0',
+                  fontSize: '12px',
+                  color: '#065F46'
+                }}>
+                  <strong>Success:</strong> Link optimization completed successfully
+                </div>
+              )}
+            </div>
+          </NeumorphicCard>
+
+          {/* Summary Stats Grid - Compact Single Row 4x1 Layout */}
+          <NeumorphicCard>
+
+            <div style={{
+              display: 'flex',
+              gap: '6px'
+            }}>
+              <StatCard
+                icon={Zap}
+                label="CAPACITY"
+                value={totalCapacity}
+                color="#4F46E5"
+              />
+              <StatCard
+                icon={TrendingUp}
+                label="AVG UTIL"
+                value={`${avgUtilization.toFixed(0)}%`}
+                color={avgUtilization > 80 ? '#EF4444' : avgUtilization > 60 ? '#F59E0B' : '#10B981'}
+              />
+              <StatCard
+                icon={Activity}
+                label="LINKS"
+                value={`${activeLinks}/${linkDetails.length}`}
+                color="#8B5CF6"
+              />
+              <StatCard
+                icon={Clock}
+                label="LATENCY"
+                value={`${avgLatency.toFixed(1)}ms`}
+                color="#06B6D4"
+              />
+            </div>
+          </NeumorphicCard>
 
           {/* Physical Links Table - Combined with Detailed Information */}
           <NeumorphicCard>
@@ -767,8 +825,8 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
             </div>
           </NeumorphicCard>
 
-          {/* Node Details Section - Only show if nodeData exists */}
-          {connection.nodeData && (
+          {/* Node Details Section - Show when node is clicked */}
+          {connection.clickedType === 'node' && connection.nodeData && (
             <NeumorphicCard>
               <h4 style={{
                 margin: '0 0 16px 0',
@@ -779,7 +837,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                 alignItems: 'center',
                 gap: '8px'
               }}>
-                <Network style={{ width: '16px', height: '16px', color: '#6366F1' }} />
+                <Circle style={{ width: '16px', height: '16px', color: '#3B82F6' }} />
                 Node Details
               </h4>
 
@@ -792,7 +850,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                 {Object.entries(connection.nodeData)
                   .filter(([key]) =>
                     // Exclude certain keys that are not useful to display
-                    !['topology', 'details', 'x', 'y', 'coordinates'].includes(key)
+                    !['topology', 'details', 'x', 'y', 'coordinates', 'source_lon', 'source_lat', 'target_lon', 'target_lat' , 'platform'].includes(key)
                   )
                   .map(([key, value]) => {
                     // Format the key to be more readable
@@ -801,14 +859,27 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                       .join(' ');
 
-                    // Format the value
-                    let formattedValue = value;
-                    if (typeof value === 'string' && value.length > 50) {
+                    // Format the value with special handling for specific fields
+                    let formattedValue: string;
+                    let valueColor = '#1F2937';
+
+                    if (key.includes('capacity') && typeof value === 'number') {
+                      formattedValue = `${(value / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#3B82F6';
+                    } else if (key.includes('traffic') && typeof value === 'number') {
+                      formattedValue = `${(value / 1000000).toFixed(2)} Mbps`;
+                      valueColor = key.includes('in') ? '#3B82F6' : '#10B981';
+                    } else if (key.includes('utilization') && typeof value === 'number') {
+                      formattedValue = `${value.toFixed(2)}%`;
+                      valueColor = value > 80 ? '#EF4444' : value > 60 ? '#F59E0B' : '#10B981';
+                    } else if (typeof value === 'string' && value.length > 50) {
                       formattedValue = value.substring(0, 47) + '...';
                     } else if (value === null || value === undefined || value === '') {
                       formattedValue = 'N/A';
                     } else if (typeof value === 'object') {
                       formattedValue = JSON.stringify(value);
+                    } else {
+                      formattedValue = String(value);
                     }
 
                     return (
@@ -835,11 +906,11 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                         </span>
                         <span style={{
                           fontSize: '13px',
-                          color: '#1F2937',
+                          color: valueColor,
                           fontWeight: '600',
                           wordBreak: 'break-word'
                         }}>
-                          {String(formattedValue)}
+                          {formattedValue}
                         </span>
                       </div>
                     );
@@ -847,77 +918,26 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               </div>
 
               {/* Show coordinates if available */}
-              {(connection.nodeData.x !== undefined || connection.nodeData.y !== undefined) && (
+              {(connection.nodeData.longitude !== undefined || connection.nodeData.latitude !== undefined) && (
                 <div style={{
                   marginTop: '12px',
                   padding: '10px',
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(79, 70, 229, 0.05))',
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.05))',
                   borderRadius: '8px',
-                  border: '1px solid rgba(99, 102, 241, 0.2)'
+                  border: '1px solid rgba(59, 130, 246, 0.2)'
                 }}>
                   <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: '600', marginBottom: '4px' }}>
                     COORDINATES
                   </div>
-                  <div style={{ fontSize: '13px', color: '#4F46E5', fontWeight: '700' }}>
-                    Longitude: {typeof connection.nodeData.x === 'number' ? connection.nodeData.x.toFixed(6) : 'N/A'}, Latitude: {typeof connection.nodeData.y === 'number' ? connection.nodeData.y.toFixed(6) : 'N/A'}
+                  <div style={{ fontSize: '13px', color: '#3B82F6', fontWeight: '700' }}>
+                    Longitude: {typeof connection.nodeData.longitude === 'string' ? parseFloat(connection.nodeData.longitude).toFixed(6) : 'N/A'}, Latitude: {typeof connection.nodeData.latitude === 'string' ? parseFloat(connection.nodeData.latitude).toFixed(6) : 'N/A'}
                   </div>
                 </div>
               )}
             </NeumorphicCard>
           )}
 
-          {/* Alerts Section */}
-          <NeumorphicCard>
-            <h4 style={{
-              margin: '0 0 12px 0',
-              fontSize: '16px',
-              fontWeight: '600',
-              color: '#1F2937',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <AlertTriangle style={{ width: '16px', height: '16px', color: '#F59E0B' }} />
-              Recent Alerts
-            </h4>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {avgUtilization > 80 && (
-                <div style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  background: '#FEF3C7',
-                  border: '1px solid #FDE68A',
-                  fontSize: '12px',
-                  color: '#92400E'
-                }}>
-                  <strong>Warning:</strong> High utilization detected ({avgUtilization.toFixed(0)}%) at {new Date().toLocaleTimeString()}
-                </div>
-              )}
-              <div style={{
-                padding: '8px 12px',
-                borderRadius: '8px',
-                background: '#DBEAFE',
-                border: '1px solid #BFDBFE',
-                fontSize: '12px',
-                color: '#1E40AF'
-              }}>
-                <strong>Info:</strong> Scheduled maintenance window: Sunday 02:00-04:00 WIB
-              </div>
-              {Math.random() > 0.5 && (
-                <div style={{
-                  padding: '8px 12px',
-                  borderRadius: '8px',
-                  background: '#D1FAE5',
-                  border: '1px solid #A7F3D0',
-                  fontSize: '12px',
-                  color: '#065F46'
-                }}>
-                  <strong>Success:</strong> Link optimization completed successfully
-                </div>
-              )}
-            </div>
-          </NeumorphicCard>
         </div>
       </div>
     </div>

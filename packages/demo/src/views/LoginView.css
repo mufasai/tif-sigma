@@ -7,7 +7,7 @@
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit';
   position: relative;
   background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 50%, #f8fafc 100%);
 }
@@ -588,7 +588,7 @@
   font-weight: 500;
   outline: none;
   transition: all 0.3s ease;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit';
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
 }
 
@@ -634,7 +634,7 @@
   justify-content: center;
   gap: 10px;
   box-shadow: 0 6px 16px rgba(220, 38, 38, 0.3);
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit';
   position: relative;
   overflow: hidden;
   letter-spacing: 0.3px;

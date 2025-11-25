@@ -129,6 +129,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     to: string;
     nodeData?: any;
     topology?: any[];
+    linkDetails?: Array<Record<string, any>>;
+    clickedType?: 'node' | 'edge';
   } | null>(null);
 
   // New state for hierarchy and navigation (matching App.tsx)
@@ -2069,17 +2071,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
               type: firstEdge.layer_list || "L2_AGGREGATION",
               nodeData: props, // Pass all node properties
+              linkDetails: nodeDetails.length > 0 ? nodeDetails : undefined, // Pass node details if available
               clickedType: 'node', // Indicate that a node was clicked
             });
             setShowLinkDetails(true);
           }
 
-          // Set topology connection with connected edges data (default hidden)
+          // Set topology connection with connected edges data and linkDetails (default hidden)
           setTopologyConnection({
             from: nodeLabel,
             to: "Network",
             nodeData: props,
             topology: connectedEdges,
+            linkDetails: nodeDetails.length > 0 ? nodeDetails : undefined,
+            clickedType: 'node',
           });
           // Don't auto-show topology drawer, let user click the button
           // setShowTopologyDrawer(true);
@@ -2250,19 +2255,68 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           const topologyCount = props?.topologyCount || 0;
 
+          // Parse node details if available
+          let nodeDetails = [];
+          try {
+            if (props?.details && typeof props.details === "string") {
+              nodeDetails = JSON.parse(props.details);
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
+          // Build additional node info HTML
+          const additionalInfo: string[] = [];
+          
+          if (props?.layer) {
+            additionalInfo.push(`<strong>Layer:</strong> <span style="color: #8B5CF6; font-weight: 600;">${props.layer}</span>`);
+          }
+          
+          if (props?.platform) {
+            additionalInfo.push(`<strong>Platform:</strong> <span>${props.platform}</span>`);
+          }
+          
+          if (props?.reg) {
+            additionalInfo.push(`<strong>Region:</strong> <span>REG ${props.reg}</span>`);
+          }
+          
+          if (props?.witel) {
+            additionalInfo.push(`<strong>Witel:</strong> <span>${props.witel}</span>`);
+          }
+          
+          if (props?.types) {
+            additionalInfo.push(`<strong>Type:</strong> <span>${props.types}</span>`);
+          }
+
+          if (props?.size) {
+            additionalInfo.push(`<strong>Size:</strong> <span style="color: #6366F1; font-weight: 600;">${props.size}</span>`);
+          }
+
+          const additionalInfoHTML = additionalInfo.length > 0 
+            ? additionalInfo.join('\n')
+            : '';
+
+          const nodeDetailsHTML = nodeDetails.length > 0
+            ? `<div style="margin-top: 4px; padding: 4px; background: rgba(139, 92, 246, 0.1); border-radius: 3px; font-size: 9px; color: #8B5CF6; text-align: center;">
+                <strong>📋 ${nodeDetails.length} node detail${nodeDetails.length !== 1 ? 's' : ''}</strong>
+              </div>`
+            : '';
+
           hoverPopup
             .setLngLat(coordinates)
             .setHTML(
               `
-              <div style="font-size: 11px; padding: 6px; max-width: 220px;">
+              <div style="font-size: 11px; padding: 6px; max-width: 260px;">
                 <strong style="font-size: 13px; color: #3B82F6;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
                 <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
                 <div style="display: grid; grid-template-columns: auto 1fr; gap: 3px 6px; font-size: 10px;">
                   <strong>ID:</strong> <span>${props?.id || "N/A"}</span>
+                  ${additionalInfoHTML}
                   <strong>Connections:</strong> <span style="color: #3B82F6; font-weight: 600;">${topologyCount}</span>
                 </div>
-                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
-                  Click for details
+                ${nodeDetailsHTML}
+                <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center; font-style: italic;">
+                  Click for full details
                 </div>
               </div>
             `,
@@ -2277,13 +2331,13 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         hoverPopup.remove();
       };
 
-      // Add hover handlers for both points layer and hit area layer
-      map.current.on("mouseenter", "ruasrekap-points", handlePointsHoverEnter);
+      // Add hover handlers ONLY for hit area layer (top layer) to avoid conflicts with edges below
+      // The hitarea layer is on top of everything, so it will catch hover events first
       map.current.on("mouseenter", "ruasrekap-points-hitarea", handlePointsHoverEnter);
-      map.current.on("mouseleave", "ruasrekap-points", handlePointsHoverLeave);
       map.current.on("mouseleave", "ruasrekap-points-hitarea", handlePointsHoverLeave);
 
       // Add hover handlers for lines (edges) with popup
+      // Note: The hitarea layer above will catch hover events on nodes, so edges won't conflict
       map.current.on("mouseenter", "ruasrekap-lines", (e) => {
         map.current!.getCanvas().style.cursor = "pointer";
 
@@ -2367,6 +2421,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       });
 
       // Add hover handlers for glow lines layer (to ensure hover works across entire line width)
+      // Note: The hitarea layer above will catch hover events on nodes, so edges won't conflict
       map.current.on("mouseenter", "ruasrekap-lines-glow", (e) => {
         map.current!.getCanvas().style.cursor = "pointer";
 
@@ -2731,6 +2786,16 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
+          // Parse node details if available
+          let nodeDetails = [];
+          try {
+            if (props?.details && typeof props.details === "string") {
+              nodeDetails = JSON.parse(props.details);
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
           // Show LinkDetailsPanel with first edge if available
           if (connectedEdges.length > 0) {
             const firstEdge = connectedEdges[0];
@@ -2750,17 +2815,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               totalCapacity: `${(firstEdge.total_capacity / 1000000000).toFixed(2)}G`,
               type: firstEdge.layer_list || "L2_AGGREGATION",
               nodeData: props, // Pass all node properties
+              linkDetails: nodeDetails.length > 0 ? nodeDetails : undefined, // Pass node details if available
               clickedType: 'node', // Indicate that a node was clicked
             });
             setShowLinkDetails(true);
           }
 
-          // Set topology connection with connected edges data (default hidden)
+          // Set topology connection with connected edges data and linkDetails (default hidden)
           setTopologyConnection({
             from: nodeLabel,
             to: "Network",
             nodeData: props,
             topology: connectedEdges,
+            linkDetails: nodeDetails.length > 0 ? nodeDetails : undefined,
+            clickedType: 'node',
           });
           // Don't auto-show topology drawer, let user click the button
           // setShowTopologyDrawer(true);
@@ -2927,11 +2995,46 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           );
           const connectionCount = connectedEdges.length;
 
+          // Parse node details if available
+          let nodeDetails = [];
+          try {
+            if (props?.details && typeof props.details === "string") {
+              nodeDetails = JSON.parse(props.details);
+            }
+          } catch (_error) {
+            /* empty */
+          }
+
+          // Build additional node info
+          const additionalInfo: string[] = [];
+          
+          if (props?.reg) {
+            additionalInfo.push(`<strong style="color: #6B7280;">Region:</strong> <span style="color: #1F2937;">REG ${props.reg}</span>`);
+          }
+          
+          if (props?.types) {
+            additionalInfo.push(`<strong style="color: #6B7280;">Type:</strong> <span style="color: #1F2937;">${props.types}</span>`);
+          }
+
+          if (props?.size) {
+            additionalInfo.push(`<strong style="color: #6B7280;">Size:</strong> <span style="color: #6366F1; font-weight: 600;">${props.size}</span>`);
+          }
+
+          const additionalInfoHTML = additionalInfo.length > 0 
+            ? additionalInfo.join('\n')
+            : '';
+
+          const nodeDetailsHTML = nodeDetails.length > 0
+            ? `<div style="margin-top: 4px; padding: 4px; background: rgba(16, 185, 129, 0.1); border-radius: 3px; font-size: 9px; color: #10B981; text-align: center;">
+                <strong>📋 ${nodeDetails.length} node detail${nodeDetails.length !== 1 ? 's' : ''}</strong>
+              </div>`
+            : '';
+
           hoverPopup
             .setLngLat(coordinates)
             .setHTML(
               `
-              <div style="font-size: 11px; padding: 8px; max-width: 240px;">
+              <div style="font-size: 11px; padding: 8px; max-width: 260px;">
                 <strong style="font-size: 13px; color: #10B981;">📡 ${props?.label || props?.id || "Node"}</strong><br/>
                 <div style="font-size: 9px; color: #6B7280; margin-top: 2px;">STO ID: ${props?.id || "N/A"}</div>
                 <hr style="margin: 6px 0; border: none; border-top: 1px solid #e5e7eb;"/>
@@ -2939,8 +3042,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong style="color: #6B7280;">Layer:</strong> <span style="color: #1F2937;">${props?.layer || "N/A"}</span>
                   <strong style="color: #6B7280;">Platform:</strong> <span style="color: #1F2937;">${props?.platform || "N/A"}</span>
                   <strong style="color: #6B7280;">Witel:</strong> <span style="color: #1F2937;">${props?.witel || "N/A"}</span>
+                  ${additionalInfoHTML}
                   <strong style="color: #6B7280;">Links:</strong> <span style="color: #10B981; font-weight: 600;">${connectionCount}</span>
                 </div>
+                ${nodeDetailsHTML}
                 <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center; font-style: italic;">
                   Click for full details
                 </div>
@@ -2957,14 +3062,14 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         hoverPopup.remove();
       };
 
-      // Add hover handlers for both STO points layer and hit area layer
-      map.current.on("mouseenter", "ruas-rekap-sto-points", handleStoPointsHoverEnter);
+      // Add hover handlers ONLY for hit area layer (top layer) to avoid conflicts with edges below
+      // The hitarea layer is on top of everything, so it will catch hover events first
       map.current.on("mouseenter", "ruas-rekap-sto-points-hitarea", handleStoPointsHoverEnter);
-      map.current.on("mouseleave", "ruas-rekap-sto-points", handleStoPointsHoverLeave);
       map.current.on("mouseleave", "ruas-rekap-sto-points-hitarea", handleStoPointsHoverLeave);
 
       // Add hover handlers for lines (edges) with popup
       map.current.on("mouseenter", "ruas-rekap-sto-lines", (e) => {
+        // Note: The hitarea layer above will catch hover events on nodes, so edges won't conflict
         map.current!.getCanvas().style.cursor = "pointer";
 
         if (e.features && e.features.length > 0) {
