@@ -463,7 +463,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               <table style={{
                 width: '100%',
                 borderCollapse: 'collapse',
-                minWidth: connection.linkDetails && connection.linkDetails.length > 0 ? '1400px' : '100%'
+                minWidth: connection.linkDetails && connection.linkDetails.length > 0 ? '1900px' : '100%'
               }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                   <tr style={{ background: 'linear-gradient(135deg, #F8FAFC, #F1F5F9)' }}>
@@ -548,6 +548,39 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                         
                               <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
                                 {utilization}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', textAlign: 'center', fontWeight: '600' }}>
+                            {typeof detail.jml_pisik === 'number' ? detail.jml_pisik : 'N/A'}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', textAlign: 'center', fontWeight: '600' }}>
+                            {typeof detail.jml_rec === 'number' ? detail.jml_rec : 'N/A'}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', textAlign: 'center', fontWeight: '600' }}>
+                            {typeof detail.jmpsk === 'number' ? detail.jmpsk : 'N/A'}
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '600', color: '#3B82F6' }}>
+                                {typeof detail.source_port_used === 'number' && typeof detail.source_port_count === 'number' 
+                                  ? `${detail.source_port_used}/${detail.source_port_count}` 
+                                  : 'N/A'}
+                              </span>
+                              <span style={{ fontSize: '9px', color: '#6B7280' }}>
+                                {typeof detail.source_port_idle === 'number' ? `${detail.source_port_idle} idle` : ''}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                              <span style={{ fontWeight: '600', color: '#10B981' }}>
+                                {typeof detail.target_port_used === 'number' && typeof detail.target_port_count === 'number' 
+                                  ? `${detail.target_port_used}/${detail.target_port_count}` 
+                                  : 'N/A'}
+                              </span>
+                              <span style={{ fontSize: '9px', color: '#6B7280' }}>
+                                {typeof detail.target_port_idle === 'number' ? `${detail.target_port_idle} idle` : ''}
                               </span>
                             </div>
                           </td>

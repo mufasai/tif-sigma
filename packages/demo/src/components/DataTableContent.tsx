@@ -34,6 +34,15 @@ interface EdgeData {
   total_traffic_max_out?: number;
   avg_utilization?: number;
   link_count?: number;
+  jml_pisik?: number;
+  jml_rec?: number;
+  jmpsk?: number;
+  source_port_count?: number;
+  source_port_idle?: number;
+  source_port_used?: number;
+  target_port_count?: number;
+  target_port_idle?: number;
+  target_port_used?: number;
   details?: any[];
   [key: string]: any;
 }
@@ -257,6 +266,21 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
             Links
           </th>
           <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Jml Pisik
+          </th>
+          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Jml Rec
+          </th>
+          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Jml PSK
+          </th>
+          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Source Ports
+          </th>
+          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Target Ports
+          </th>
+          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Details
           </th>
         </tr>
@@ -359,6 +383,43 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
                     {edge.link_count || 1}
                   </span>
                 </td>
+                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  {typeof edge.jml_pisik === 'number' ? edge.jml_pisik : 'N/A'}
+                </td>
+                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  {typeof edge.jml_rec === 'number' ? edge.jml_rec : 'N/A'}
+                </td>
+                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  {typeof edge.jmpsk === 'number' ? edge.jmpsk : 'N/A'}
+                </td>
+                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
+                    <span style={{ fontWeight: "600", color: "#3B82F6" }}>
+                      {typeof edge.source_port_used === 'number' && typeof edge.source_port_count === 'number' 
+                        ? `${edge.source_port_used}/${edge.source_port_count}` 
+                        : 'N/A'}
+                    </span>
+                    {typeof edge.source_port_idle === 'number' && (
+                      <span style={{ fontSize: "10px", color: "#6B7280" }}>
+                        {edge.source_port_idle} idle
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
+                    <span style={{ fontWeight: "600", color: "#10B981" }}>
+                      {typeof edge.target_port_used === 'number' && typeof edge.target_port_count === 'number' 
+                        ? `${edge.target_port_used}/${edge.target_port_count}` 
+                        : 'N/A'}
+                    </span>
+                    {typeof edge.target_port_idle === 'number' && (
+                      <span style={{ fontSize: "10px", color: "#6B7280" }}>
+                        {edge.target_port_idle} idle
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td style={{ padding: "12px 16px", textAlign: "center" }}>
                   {hasDetails && (
                     <button
@@ -386,7 +447,7 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
               </tr>
               {isExpanded && hasDetails && (
                 <tr>
-                  <td colSpan={11} style={{ padding: "0", background: "rgba(139, 92, 246, 0.02)" }}>
+                  <td colSpan={16} style={{ padding: "0", background: "rgba(139, 92, 246, 0.02)" }}>
                     <div style={{ padding: "16px", borderLeft: "4px solid #8B5CF6" }}>
                       <h4 style={{ fontSize: "13px", fontWeight: "700", color: "#1F2937", marginBottom: "12px" }}>
                         Edge Details ({edge.details?.length || 0} physical links)
