@@ -642,7 +642,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
         zIndex: 9999,
         width: '700px',
         left: `${position.x}px`,
-        top: `${position.y}px`,
+        top: '200px',
       }}
     >
       <div style={{

@@ -480,6 +480,11 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic In PSK (Mbps)</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out PSK (Mbps)</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '100px' }}>Utilization</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '90px' }}>Jml Pisik</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '90px' }}>Jml Rec</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '90px' }}>Jml PSK</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '110px' }}>Source Ports</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '110px' }}>Target Ports</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -662,6 +667,21 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                               {link.utilization}%
                             </span>
                           </div>
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', textAlign: 'center', fontWeight: '600' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', textAlign: 'center', fontWeight: '600' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#374151', textAlign: 'center', fontWeight: '600' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
+                          N/A
                         </td>
                       </tr>
                     ))
