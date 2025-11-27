@@ -1,4 +1,5 @@
-import { FiChevronDown, FiChevronRight } from "react-icons/fi";
+import { FiChevronDown, FiChevronRight, FiSearch } from "react-icons/fi";
+import { useState } from "react";
 
 interface NodeData {
   id: string;
@@ -60,6 +61,8 @@ interface EdgesTableProps {
 }
 
 export function NodesTable({ nodes, expandedRows, onToggleExpand }: NodesTableProps) {
+  const [detailSearchTerms, setDetailSearchTerms] = useState<Record<string, string>>({});
+
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead style={{
@@ -185,30 +188,114 @@ export function NodesTable({ nodes, expandedRows, onToggleExpand }: NodesTablePr
                 <tr>
                   <td colSpan={9} style={{ padding: "0", background: "rgba(59, 130, 246, 0.02)" }}>
                     <div style={{ padding: "16px", borderLeft: "4px solid #3B82F6" }}>
-                      <h4 style={{ fontSize: "13px", fontWeight: "700", color: "#1F2937", marginBottom: "12px" }}>
-                        Node Details ({node.details?.length || 0} items)
-                      </h4>
-                      <div style={{ display: "grid", gap: "8px" }}>
-                        {(node.details || []).map((detail: any, idx: number) => (
-                          <div key={idx} style={{
-                              background: "white",
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "12px" }}>
+                        <h4 style={{ fontSize: "13px", fontWeight: "700", color: "#1F2937", margin: 0, whiteSpace: "nowrap" }}>
+                          Node Details ({node.details?.length || 0} items)
+                        </h4>
+                        <div style={{ position: "relative", flex: 1, maxWidth: "400px" }}>
+                          <FiSearch style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", width: "16px", height: "16px" }} />
+                          <input
+                            type="text"
+                            placeholder="Search in details..."
+                            value={detailSearchTerms[node.id] || ""}
+                            onChange={(e) => setDetailSearchTerms({ ...detailSearchTerms, [node.id]: e.target.value })}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px 8px 36px",
                               borderRadius: "8px",
-                              padding: "12px",
-                              border: "1px solid rgba(0,0,0,0.06)",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
+                              border: "1px solid rgba(0,0,0,0.1)",
+                              fontSize: "12px",
+                              outline: "none",
+                              transition: "all 0.2s"
                             }}
-                          >
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px", fontSize: "12px" }}>
-                              {Object.entries(detail).map(([key, value]) => (
-                                <div key={key} style={{ display: "flex", gap: "8px" }}>
-                                  <span style={{ fontWeight: "600", color: "#6B7280" }}>{key}:</span>
-                                  <span style={{ color: "#1F2937" }}>{String(value)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = "#3B82F6";
+                              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)";
+                              e.currentTarget.style.boxShadow = "none";
+                            }}
+                          />
+                        </div>
                       </div>
+                      <div style={{ overflowX: "auto", overflowY: "visible", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.06)", maxHeight: "500px" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", background: "white" }}>
+                          <thead style={{ background: "linear-gradient(135deg, #F8FAFC, #F1F5F9)" }}>
+                            <tr>
+                              {node.details && node.details.length > 0 && Object.keys(node.details[0]).map((key) => (
+                                <th key={key} style={{
+                                  padding: "10px 12px",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  color: "#475569",
+                                  textAlign: "left",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.5px",
+                                  borderBottom: "2px solid rgba(0,0,0,0.06)",
+                                  whiteSpace: "nowrap"
+                                }}>
+                                  {key.replace(/_/g, " ")}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(node.details || [])
+                              .filter((detail: any) => {
+                                const searchTerm = (detailSearchTerms[node.id] || "").toLowerCase();
+                                if (!searchTerm) return true;
+                                return Object.values(detail).some(value => 
+                                  String(value).toLowerCase().includes(searchTerm)
+                                );
+                              })
+                              .map((detail: any, idx: number) => (
+                              <tr key={idx} style={{
+                                borderBottom: "1px solid rgba(0,0,0,0.04)",
+                                background: idx % 2 === 0 ? "white" : "rgba(249,250,251,0.5)",
+                                transition: "background 0.2s"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(59, 130, 246, 0.05)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = idx % 2 === 0 ? "white" : "rgba(249,250,251,0.5)";
+                              }}
+                              >
+                                {Object.entries(detail).map(([key, value]) => (
+                                  <td key={key} style={{
+                                    padding: "10px 12px",
+                                    fontSize: "12px",
+                                    color: "#1F2937",
+                                    whiteSpace: "nowrap"
+                                  }}>
+                                    {String(value)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {(node.details || []).filter((detail: any) => {
+                        const searchTerm = (detailSearchTerms[node.id] || "").toLowerCase();
+                        if (!searchTerm) return true;
+                        return Object.values(detail).some(value => 
+                          String(value).toLowerCase().includes(searchTerm)
+                        );
+                      }).length === 0 && detailSearchTerms[node.id] && (
+                        <div style={{
+                          padding: "20px",
+                          textAlign: "center",
+                          color: "#6B7280",
+                          fontSize: "13px",
+                          background: "white",
+                          borderRadius: "8px",
+                          marginTop: "8px"
+                        }}>
+                          No results found for "{detailSearchTerms[node.id]}"
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -223,6 +310,8 @@ export function NodesTable({ nodes, expandedRows, onToggleExpand }: NodesTablePr
 
 
 export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTableProps) {
+  const [detailSearchTerms, setDetailSearchTerms] = useState<Record<string, string>>({});
+
   return (
     <table style={{ width: "100%", borderCollapse: "collapse" }}>
       <thead style={{
@@ -264,21 +353,6 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
           </th>
           <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Links
-          </th>
-          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Jml Pisik
-          </th>
-          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Jml Rec
-          </th>
-          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Jml PSK
-          </th>
-          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Source Ports
-          </th>
-          <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Target Ports
           </th>
           <th style={{ padding: "14px 16px", textAlign: "center", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Details
@@ -383,43 +457,6 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
                     {edge.link_count || 1}
                   </span>
                 </td>
-                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-                  {typeof edge.jml_pisik === 'number' ? edge.jml_pisik : 'N/A'}
-                </td>
-                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-                  {typeof edge.jml_rec === 'number' ? edge.jml_rec : 'N/A'}
-                </td>
-                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
-                  {typeof edge.jmpsk === 'number' ? edge.jmpsk : 'N/A'}
-                </td>
-                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
-                    <span style={{ fontWeight: "600", color: "#3B82F6" }}>
-                      {typeof edge.source_port_used === 'number' && typeof edge.source_port_count === 'number' 
-                        ? `${edge.source_port_used}/${edge.source_port_count}` 
-                        : 'N/A'}
-                    </span>
-                    {typeof edge.source_port_idle === 'number' && (
-                      <span style={{ fontSize: "10px", color: "#6B7280" }}>
-                        {edge.source_port_idle} idle
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td style={{ padding: "12px 16px", textAlign: "center", fontSize: "12px" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
-                    <span style={{ fontWeight: "600", color: "#10B981" }}>
-                      {typeof edge.target_port_used === 'number' && typeof edge.target_port_count === 'number' 
-                        ? `${edge.target_port_used}/${edge.target_port_count}` 
-                        : 'N/A'}
-                    </span>
-                    {typeof edge.target_port_idle === 'number' && (
-                      <span style={{ fontSize: "10px", color: "#6B7280" }}>
-                        {edge.target_port_idle} idle
-                      </span>
-                    )}
-                  </div>
-                </td>
                 <td style={{ padding: "12px 16px", textAlign: "center" }}>
                   {hasDetails && (
                     <button
@@ -447,32 +484,116 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
               </tr>
               {isExpanded && hasDetails && (
                 <tr>
-                  <td colSpan={16} style={{ padding: "0", background: "rgba(139, 92, 246, 0.02)" }}>
+                  <td colSpan={11} style={{ padding: "0", background: "rgba(139, 92, 246, 0.02)" }}>
                     <div style={{ padding: "16px", borderLeft: "4px solid #8B5CF6" }}>
-                      <h4 style={{ fontSize: "13px", fontWeight: "700", color: "#1F2937", marginBottom: "12px" }}>
-                        Edge Details ({edge.details?.length || 0} physical links)
-                      </h4>
-                      <div style={{ display: "grid", gap: "8px" }}>
-                        {(edge.details || []).map((detail: any, idx: number) => (
-                          <div key={idx} style={{
-                              background: "white",
+                      <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "12px" }}>
+                        <h4 style={{ fontSize: "13px", fontWeight: "700", color: "#1F2937", margin: 0, whiteSpace: "nowrap" }}>
+                          Edge Details ({edge.details?.length || 0} physical links)
+                        </h4>
+                        <div style={{ position: "relative", flex: 1, maxWidth: "400px" }}>
+                          <FiSearch style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#9CA3AF", width: "16px", height: "16px" }} />
+                          <input
+                            type="text"
+                            placeholder="Search in details..."
+                            value={detailSearchTerms[edge.id] || ""}
+                            onChange={(e) => setDetailSearchTerms({ ...detailSearchTerms, [edge.id]: e.target.value })}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px 8px 36px",
                               borderRadius: "8px",
-                              padding: "12px",
-                              border: "1px solid rgba(0,0,0,0.06)",
-                              boxShadow: "0 2px 4px rgba(0,0,0,0.04)",
+                              border: "1px solid rgba(0,0,0,0.1)",
+                              fontSize: "12px",
+                              outline: "none",
+                              transition: "all 0.2s"
                             }}
-                          >
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px", fontSize: "12px" }}>
-                              {Object.entries(detail).map(([key, value]) => (
-                                <div key={key} style={{ display: "flex", gap: "8px" }}>
-                                  <span style={{ fontWeight: "600", color: "#6B7280" }}>{key}:</span>
-                                  <span style={{ color: "#1F2937" }}>{String(value)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = "#8B5CF6";
+                              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(139, 92, 246, 0.1)";
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)";
+                              e.currentTarget.style.boxShadow = "none";
+                            }}
+                          />
+                        </div>
                       </div>
+                      <div style={{ overflowX: "auto", overflowY: "visible", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.06)", maxHeight: "500px" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", background: "white" }}>
+                          <thead style={{ background: "linear-gradient(135deg, #F8FAFC, #F1F5F9)" }}>
+                            <tr>
+                              {edge.details && edge.details.length > 0 && Object.keys(edge.details[0]).map((key) => (
+                                <th key={key} style={{
+                                  padding: "10px 12px",
+                                  fontSize: "11px",
+                                  fontWeight: "700",
+                                  color: "#475569",
+                                  textAlign: "left",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.5px",
+                                  borderBottom: "2px solid rgba(0,0,0,0.06)",
+                                  whiteSpace: "nowrap"
+                                }}>
+                                  {key.replace(/_/g, " ")}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(edge.details || [])
+                              .filter((detail: any) => {
+                                const searchTerm = (detailSearchTerms[edge.id] || "").toLowerCase();
+                                if (!searchTerm) return true;
+                                return Object.values(detail).some(value => 
+                                  String(value).toLowerCase().includes(searchTerm)
+                                );
+                              })
+                              .map((detail: any, idx: number) => (
+                              <tr key={idx} style={{
+                                borderBottom: "1px solid rgba(0,0,0,0.04)",
+                                background: idx % 2 === 0 ? "white" : "rgba(249,250,251,0.5)",
+                                transition: "background 0.2s"
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "rgba(139, 92, 246, 0.05)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = idx % 2 === 0 ? "white" : "rgba(249,250,251,0.5)";
+                              }}
+                              >
+                                {Object.entries(detail).map(([key, value]) => (
+                                  <td key={key} style={{
+                                    padding: "10px 12px",
+                                    fontSize: "12px",
+                                    color: "#1F2937",
+                                    whiteSpace: "nowrap"
+                                  }}>
+                                    {String(value)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {(edge.details || []).filter((detail: any) => {
+                        const searchTerm = (detailSearchTerms[edge.id] || "").toLowerCase();
+                        if (!searchTerm) return true;
+                        return Object.values(detail).some(value => 
+                          String(value).toLowerCase().includes(searchTerm)
+                        );
+                      }).length === 0 && detailSearchTerms[edge.id] && (
+                        <div style={{
+                          padding: "20px",
+                          textAlign: "center",
+                          color: "#6B7280",
+                          fontSize: "13px",
+                          background: "white",
+                          borderRadius: "8px",
+                          marginTop: "8px"
+                        }}>
+                          No results found for "{detailSearchTerms[edge.id]}"
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
