@@ -1783,7 +1783,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             
             // Get severity from backend data, fallback to calculated severity if not available
             // const severity = edge.severity || calculateSeverity(utilization);
-            const severity = 'major'
+            const severity = 'low'
 
             lineFeatures.push({
               type: "Feature" as const,
@@ -1903,7 +1903,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           "line-color": [
             "match",
             ["get", "severity"],
-            "low", "#10B981",      // Green
+            "low", "#101bb9",      // Green
             "minor", "#F59E0B",    // Yellow
             "major", "#F97316",    // Orange
             "critical", "#EF4444", // Red
@@ -1925,7 +1925,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           "line-color": [
             "match",
             ["get", "severity"],
-            "low", "#10B981",      // Green
+            "low", "#101bb9",      // Green
             "minor", "#F59E0B",    // Yellow
             "major", "#F97316",    // Orange
             "critical", "#EF4444", // Red
