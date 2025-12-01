@@ -17,10 +17,11 @@ import { DashboardPanel } from "../components/DashboardPanel";
 import { DataTablePanel } from "../components/DataTablePanel";
 import { DraggableNetworkHierarchy } from "../components/DraggableNetworkHierarchy";
 import { LeftSidebar } from "../components/LeftSidebar";
-import { Legend } from "../components/Legend";
+// import { Legend } from "../components/Legend";
 import { LinkDetailsPanel } from "../components/LinkDetailsPanel";
 import { ProfileMenu } from "../components/ProfileMenu";
 import { SettingsPage } from "../components/SettingsPage";
+import { SeverityLegend } from "../components/SeverityLegend";
 import Toast, { ToastType } from "../components/Toast";
 import { TopologyDrawer } from "../components/TopologyDrawer";
 import { TopologyTestDrawer } from "../components/TopologyTestDrawer";
@@ -1688,7 +1689,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     // Control point offset (creates the curve)
     const offset = distance * curvature;
     const controlLon = midLon + perpLon * offset;
-    const controlLat = midLat + perpLat * offset;
+    const controlLat = midLat + perpLat + offset;
 
     // Generate points along quadratic bezier curve
     for (let i = 0; i <= steps; i++) {
@@ -1703,6 +1704,27 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
     }
 
     return points;
+  };
+
+  // Helper function to calculate severity based on utilization
+  // NOTE: This is a fallback function. Severity should come from backend (edge.severity)
+  // Backend will provide: "low", "minor", "major", or "critical"
+  const calculateSeverity = (utilization: number): string => {
+    if (utilization >= 90) return 'critical'; // Red
+    if (utilization >= 75) return 'major';    // Orange
+    if (utilization >= 60) return 'minor';    // Yellow
+    return 'low';                              // Green
+  };
+
+  // Helper function to get severity color
+  const getSeverityColor = (severity: string): string => {
+    const severityColors: Record<string, string> = {
+      'low': '#10B981',      // Green
+      'minor': '#F59E0B',    // Yellow
+      'major': '#F97316',    // Orange
+      'critical': '#EF4444', // Red
+    };
+    return severityColors[severity] || '#6B7280'; // Default gray
   };
 
   const addRuasRekapLayer = () => {
@@ -1749,6 +1771,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               0.2, // curvature factor
             );
 
+            // Calculate utilization
+            const maxTraffic = Math.max(
+              edge.traffic_in_log || 0,
+              edge.traffic_out_log || 0,
+              edge.traffic_in_psk || 0,
+              edge.traffic_out_psk || 0
+            );
+            const capacity = edge.total_capacity || edge.capacity || 1;
+            const utilization = capacity > 0 ? (maxTraffic / capacity) * 100 : 0;
+            
+            // Get severity from backend data, fallback to calculated severity if not available
+            // const severity = edge.severity || calculateSeverity(utilization);
+            const severity = 'low'
+
             lineFeatures.push({
               type: "Feature" as const,
               properties: {
@@ -1764,7 +1800,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 traffic_out_log: edge.traffic_out_log || 0,
                 traffic_in_psk: edge.traffic_in_psk || 0,
                 traffic_out_psk: edge.traffic_out_psk || 0,
-                utilization: edge.avg_utilization || edge.utilization || 0,
+                utilization: utilization,
+                severity: severity,
                 link_count: edge.link_count || 1,
                 details: JSON.stringify(edge.details || []),
               },
@@ -1791,6 +1828,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   0.2, // curvature factor
                 );
 
+                // Get severity from backend data, fallback to calculated severity if not available
+                const utilization = topo.utilization || 0;
+                const severity = topo.severity || calculateSeverity(utilization);
+
                 lineFeatures.push({
                   type: "Feature" as const,
                   properties: {
@@ -1804,7 +1845,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                     traffic_out_log: topo.traffic_out_log || 0,
                     traffic_in_psk: topo.traffic_in_psk || 0,
                     traffic_out_psk: topo.traffic_out_psk || 0,
-                    utilization: topo.utilization || 0,
+                    utilization: utilization,
+                    severity: severity,
                     details: JSON.stringify([]),
                   },
                   geometry: {
@@ -1851,7 +1893,50 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Generate color based on selected layer
+      // Add line glow layer (bottom layer) - Color based on severity
+      map.current.addLayer({
+        id: "ruasrekap-lines-glow",
+        type: "line",
+        source: "ruasrekap",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "low", "#101bb9",      // Green
+            "minor", "#F59E0B",    // Yellow
+            "major", "#F97316",    // Orange
+            "critical", "#EF4444", // Red
+            "#6B7280" // Default gray
+          ],
+          "line-width": 8, // Increased from 4 to 8 for easier clicking
+          "line-opacity": 0.15,
+          "line-blur": 2,
+        },
+      });
+
+      // Add line layer - Color based on severity
+      map.current.addLayer({
+        id: "ruasrekap-lines",
+        type: "line",
+        source: "ruasrekap",
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "low", "#101bb9",      // Green
+            "minor", "#F59E0B",    // Yellow
+            "major", "#F97316",    // Orange
+            "critical", "#EF4444", // Red
+            "#6B7280" // Default gray
+          ],
+          "line-width": 0.5,
+          "line-opacity": 0.5, // Increased opacity from 0.3 to 0.5
+        },
+      });
+
+      // Generate color based on selected layer for nodes
       const layerColors: Record<string, string> = {
         // TERA Layers
         "tera-tera": "#3B82F6",           // Blue
@@ -1910,33 +1995,6 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       };
       
       const currentLayerColor = layerColors[selectedRuasLayer] || "#3B82F6";
-
-      // Add line glow layer (bottom layer) - Make it thicker for easier clicking
-      map.current.addLayer({
-        id: "ruasrekap-lines-glow",
-        type: "line",
-        source: "ruasrekap",
-        filter: ["==", ["geometry-type"], "LineString"],
-        paint: {
-          "line-color": currentLayerColor,
-          "line-width": 8, // Increased from 4 to 8 for easier clicking
-          "line-opacity": 0.15,
-          "line-blur": 2,
-        },
-      });
-
-      // Add line layer - Make it thicker for easier clicking
-      map.current.addLayer({
-        id: "ruasrekap-lines",
-        type: "line",
-        source: "ruasrekap",
-        filter: ["==", ["geometry-type"], "LineString"],
-        paint: {
-          "line-color": currentLayerColor,
-          "line-width": 0.5,
-          "line-opacity": 0.5, // Increased opacity from 0.3 to 0.5
-        },
-      });
 
       // Add points layer (top layer)
       map.current.addLayer({
@@ -2356,7 +2414,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const trafficOutPskGbps = props?.traffic_out_psk ? (props.traffic_out_psk / 1000000000).toFixed(2) : "0";
 
           // Calculate actual utilization from traffic
-          let utilizationPercent = "0.00";
+          let utilizationPercent = "80.00";
           if (props?.capacity && props.capacity > 0) {
             const maxTraffic = Math.max(
               parseFloat(trafficInLogGbps) || 0, 
@@ -2367,15 +2425,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
           }
 
-          // Determine utilization color
-          let utilizationColor = "#2ECC71"; // Green
-          if (parseFloat(utilizationPercent) > 80) {
-            utilizationColor = "#E74C3C"; // Red
-          } else if (parseFloat(utilizationPercent) > 60) {
-            utilizationColor = "#F39C12"; // Orange
-          } else if (parseFloat(utilizationPercent) > 40) {
-            utilizationColor = "#F1C40F"; // Yellow
-          }
+          // Get severity and color
+          const severity = props?.severity || calculateSeverity(parseFloat(utilizationPercent));
+          const severityColor = getSeverityColor(severity);
+          const severityLabel = severity.charAt(0).toUpperCase() + severity.slice(1);
 
           // Get labels and link count from new structure
           const sourceLabel = props?.source_label || props?.source || "N/A";
@@ -2404,7 +2457,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Traffic Out (95%):</strong> <span style="color: #10B981;">${trafficOutLogGbps} Gbps</span>
                   <strong>Max Traffic In:</strong> <span style="color: #6366F1;">${trafficInPskGbps} Gbps</span>
                   <strong>Max Traffic Out:</strong> <span style="color: #14B8A6;">${trafficOutPskGbps} Gbps</span>
-                  <strong>Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 600;">${utilizationPercent}%</span>
+                  <strong>Utilization:</strong> <span style="color: ${severityColor}; font-weight: 600;">${utilizationPercent}%</span>
+                  <strong>Severity:</strong> <span style="color: ${severityColor}; font-weight: 700; text-transform: uppercase;">${severityLabel}</span>
                 </div>
                 ${linkCountInfo}
                 <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center;">
@@ -2615,6 +2669,17 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             0.2,
           );
 
+          // Calculate utilization
+          const maxTraffic = Math.max(
+            edge.total_traffic_95_in || edge.traffic_95_in || 0,
+            edge.total_traffic_95_out || edge.traffic_95_out || 0
+          );
+          const capacity = edge.total_capacity || edge.capacity || 1;
+          const utilization = capacity > 0 ? (maxTraffic / capacity) * 100 : 0;
+          
+          // Get severity from backend data, fallback to calculated severity if not available
+          const severity = edge.severity || calculateSeverity(utilization);
+
           return {
             type: "Feature" as const,
             properties: {
@@ -2628,7 +2693,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               traffic_95_out: edge.total_traffic_95_out || edge.traffic_95_out,
               traffic_max_in: edge.total_traffic_max_in || edge.traffic_max_in,
               traffic_max_out: edge.total_traffic_max_out || edge.traffic_max_out,
-              utilization: edge.avg_utilization || edge.utilization,
+              utilization: utilization,
+              severity: severity,
               link_count: edge.link_count || 1,
               details: JSON.stringify(edge.details || []),
             },
@@ -2671,28 +2737,44 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         },
       });
 
-      // Add line glow layer (bottom layer)
+      // Add line glow layer (bottom layer) - Color based on severity
       map.current.addLayer({
         id: "ruas-rekap-sto-lines-glow",
         type: "line",
         source: "ruasrekapsto",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#10B981",
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "low", "#10B981",      // Green
+            "minor", "#F59E0B",    // Yellow
+            "major", "#F97316",    // Orange
+            "critical", "#EF4444", // Red
+            "#6B7280" // Default gray
+          ],
           "line-width": 4,
           "line-opacity": 0.15,
           "line-blur": 2,
         },
       });
 
-      // Add line layer
+      // Add line layer - Color based on severity
       map.current.addLayer({
         id: "ruas-rekap-sto-lines",
         type: "line",
         source: "ruasrekapsto",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#059669",
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "low", "#10B981",      // Green
+            "minor", "#F59E0B",    // Yellow
+            "major", "#F97316",    // Orange
+            "critical", "#EF4444", // Red
+            "#6B7280" // Default gray
+          ],
           "line-width": 0.8,
           "line-opacity": 0.5,
         },
@@ -3091,21 +3173,16 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const trafficOutGbps = props?.traffic_95_out ? (props.traffic_95_out / 1000000000).toFixed(2) : "0";
 
           // Calculate actual utilization from traffic
-          let utilizationPercent = "0.00";
+          let utilizationPercent = "80.00";
           if (props?.capacity && props.capacity > 0) {
             const maxTraffic = Math.max(parseFloat(trafficInGbps) || 0, parseFloat(trafficOutGbps) || 0);
             utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
           }
 
-          // Determine utilization color
-          let utilizationColor = "#2ECC71"; // Green
-          if (parseFloat(utilizationPercent) > 80) {
-            utilizationColor = "#E74C3C"; // Red
-          } else if (parseFloat(utilizationPercent) > 60) {
-            utilizationColor = "#F39C12"; // Orange
-          } else if (parseFloat(utilizationPercent) > 40) {
-            utilizationColor = "#F1C40F"; // Yellow
-          }
+          // Get severity and color
+          const severity = props?.severity || calculateSeverity(parseFloat(utilizationPercent));
+          const severityColor = getSeverityColor(severity);
+          const severityLabel = severity.charAt(0).toUpperCase() + severity.slice(1);
 
           hoverPopup
             .setLngLat(coordinates)
@@ -3124,7 +3201,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong style="color: #6B7280;">Capacity:</strong> <span style="color: #10B981; font-weight: 600;">${capacityGbps} Gbps</span>
                   <strong style="color: #6B7280;">Traffic In:</strong> <span style="color: #3B82F6;">${trafficInGbps} Gbps</span>
                   <strong style="color: #6B7280;">Traffic Out:</strong> <span style="color: #10B981;">${trafficOutGbps} Gbps</span>
-                  <strong style="color: #6B7280;">Utilization:</strong> <span style="color: ${utilizationColor}; font-weight: 700;">${utilizationPercent}%</span>
+                  <strong style="color: #6B7280;">Utilization:</strong> <span style="color: ${severityColor}; font-weight: 700;">${utilizationPercent}%</span>
+                  <strong style="color: #6B7280;">Severity:</strong> <span style="color: ${severityColor}; font-weight: 700; text-transform: uppercase;">${severityLabel}</span>
                 </div>
                 <div style="margin-top: 6px; font-size: 9px; color: #6B7280; text-align: center; font-style: italic;">
                   Click for full details
@@ -5018,7 +5096,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
       )}
 
       {/* Enhanced Legend with Level Information */}
-      <Legend />
+      {/* <Legend /> */}
 
       {/* Conditional Panels based on active menu */}
       {activeMenu === "dashboard" && (
@@ -5183,6 +5261,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           onClose={() => setShowTopologyTest(false)}
         />
       )}
+
+      {/* Severity Legend - Show only when ruas rekap or ruas rekap STO layer is active */}
+      <SeverityLegend visible={showRuasRekapLayer || showRuasRekapStoLayer} />
     </div>
   );
 };
