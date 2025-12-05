@@ -1749,6 +1749,44 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               0.2, // curvature factor
             );
 
+            // Get severity from edge data and normalize to lowercase
+            const utilization = edge.avg_utilization || edge.utilization || 0;
+            let severity = "normal";
+            
+            if (edge.severity) {
+              // Convert to lowercase for consistent matching
+              const severityLower = edge.severity.toLowerCase();
+              if (severityLower === "critical") {
+                severity = "critical";
+              } else if (severityLower === "warning") {
+                severity = "warning";
+              } else {
+                severity = "normal";
+              }
+            } else {
+              // Calculate severity based on utilization if not provided
+              if (utilization >= 85) {
+                severity = "critical";
+              } else if (utilization >= 41) {
+                severity = "warning";
+              } else {
+                severity = "normal";
+              }
+            }
+
+            // Debug log for first few edges
+            if (lineFeatures.length < 3) {
+              // eslint-disable-next-line no-console
+              console.log('Creating edge feature:', {
+                id: edge.id,
+                utilization,
+                originalSeverity: edge.severity,
+                normalizedSeverity: severity,
+                source: edge.source,
+                target: edge.target
+              });
+            }
+
             lineFeatures.push({
               type: "Feature" as const,
               properties: {
@@ -1764,8 +1802,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 traffic_out_log: edge.traffic_out_log || 0,
                 traffic_in_psk: edge.traffic_in_psk || 0,
                 traffic_out_psk: edge.traffic_out_psk || 0,
-                utilization: edge.avg_utilization || edge.utilization || 0,
+                utilization: utilization,
                 link_count: edge.link_count || 1,
+                severity: severity,
                 details: JSON.stringify(edge.details || []),
               },
               geometry: {
@@ -1791,6 +1830,31 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   0.2, // curvature factor
                 );
 
+                // Get severity from topology data and normalize to lowercase
+                const utilization = topo.utilization || 0;
+                let severity = "normal";
+                
+                if (topo.severity) {
+                  // Convert to lowercase for consistent matching
+                  const severityLower = topo.severity.toLowerCase();
+                  if (severityLower === "critical") {
+                    severity = "critical";
+                  } else if (severityLower === "warning") {
+                    severity = "warning";
+                  } else {
+                    severity = "normal";
+                  }
+                } else {
+                  // Calculate severity based on utilization if not provided
+                  if (utilization >= 85) {
+                    severity = "critical";
+                  } else if (utilization >= 41) {
+                    severity = "warning";
+                  } else {
+                    severity = "normal";
+                  }
+                }
+
                 lineFeatures.push({
                   type: "Feature" as const,
                   properties: {
@@ -1804,7 +1868,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                     traffic_out_log: topo.traffic_out_log || 0,
                     traffic_in_psk: topo.traffic_in_psk || 0,
                     traffic_out_psk: topo.traffic_out_psk || 0,
-                    utilization: topo.utilization || 0,
+                    utilization: utilization,
+                    severity: severity,
                     details: JSON.stringify([]),
                   },
                   geometry: {
@@ -1841,6 +1906,19 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
       // Combine all features
       const allFeatures = [...lineFeatures, ...pointFeatures];
+
+      // Debug: Log severity distribution
+      const severityCounts = { normal: 0, warning: 0, critical: 0 };
+      lineFeatures.forEach((feature: any) => {
+        const sev = feature.properties.severity;
+        if (sev === "normal") severityCounts.normal++;
+        else if (sev === "warning") severityCounts.warning++;
+        else if (sev === "critical") severityCounts.critical++;
+      });
+      // eslint-disable-next-line no-console
+      console.log('Ruas Rekap Layer - Severity Distribution:', severityCounts);
+      // eslint-disable-next-line no-console
+      console.log('Total edges:', lineFeatures.length);
 
       // Add source with all features
       map.current.addSource("ruasrekap", {
@@ -1918,23 +1996,37 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         source: "ruasrekap",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": currentLayerColor,
-          "line-width": 8, // Increased from 4 to 8 for easier clicking
-          "line-opacity": 0.15,
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "normal", "#10B981",    // Green for normal (0-40%)
+            "warning", "#F59E0B",   // Orange for warning (41-84%)
+            "critical", "#EF4444",  // Red for critical (85-100%)
+            currentLayerColor       // Default color if severity not found
+          ],
+          "line-width": 10, // Increased from 8 to 10 for better visibility
+          "line-opacity": 0.10, // Increased from 0.15 to 0.3
           "line-blur": 2,
         },
       });
 
-      // Add line layer - Make it thicker for easier clicking
+      // Add line layer - Make it thicker and more visible
       map.current.addLayer({
         id: "ruasrekap-lines",
         type: "line",
         source: "ruasrekap",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": currentLayerColor,
-          "line-width": 0.5,
-          "line-opacity": 0.5, // Increased opacity from 0.3 to 0.5
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "normal", "#10B981",    // Green for normal (0-40%)
+            "warning", "#F59E0B",   // Orange for warning (41-84%)
+            "critical", "#EF4444",  // Red for critical (85-100%)
+            currentLayerColor       // Default color if severity not found
+          ],
+          "line-width": 2, // Increased from 0.5 to 2 for better visibility
+          "line-opacity": 0.9, // Increased from 0.5 to 0.9 for clearer lines
         },
       });
 
@@ -2169,11 +2261,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                   <strong>Source:</strong> <span>${from}</span>
                   <strong>Target:</strong> <span>${to}</span>
                   <strong>Capacity:</strong> <span style="color: #2563EB; font-weight: 600;">${capacityGbps} Gbps</span>
-                  <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span>
-                  <strong>Traffic In (LOG):</strong> <span>${props?.traffic_in_log ? (props.traffic_in_log / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
-                  <strong>Traffic Out (LOG):</strong> <span>${props?.traffic_out_log ? (props.traffic_out_log / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
-                  <strong>Traffic In (PSK):</strong> <span>${props?.traffic_in_psk ? (props.traffic_in_psk / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
-                  <strong>Traffic Out (PSK):</strong> <span>${props?.traffic_out_psk ? (props.traffic_out_psk / 1000000000).toFixed(2) + " Gbps" : "N/A"}</span>
+                  <strong>Layer:</strong> <span>${props?.layer || "N/A"}</span> 
                 </div>
                 ${linkCountInfo}
                 ${detailsInfo}
@@ -2367,15 +2455,20 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             utilizationPercent = ((maxTraffic / parseFloat(capacityGbps)) * 100).toFixed(2);
           }
 
-          // Determine utilization color
-          let utilizationColor = "#2ECC71"; // Green
-          if (parseFloat(utilizationPercent) > 80) {
-            utilizationColor = "#E74C3C"; // Red
-          } else if (parseFloat(utilizationPercent) > 60) {
-            utilizationColor = "#F39C12"; // Orange
-          } else if (parseFloat(utilizationPercent) > 40) {
-            utilizationColor = "#F1C40F"; // Yellow
+          // Get severity from properties
+          const severity = props?.severity || "normal";
+          
+          // Determine utilization color based on severity
+          let utilizationColor = "#10B981"; // Green for normal
+          if (severity === "critical") {
+            utilizationColor = "#EF4444"; // Red
+          } else if (severity === "warning") {
+            utilizationColor = "#F59E0B"; // Orange
           }
+
+          // Debug log
+          // eslint-disable-next-line no-console
+          console.log('Edge hover - Severity:', severity, 'Utilization:', utilizationPercent, 'Color:', utilizationColor);
 
           // Get labels and link count from new structure
           const sourceLabel = props?.source_label || props?.source || "N/A";
@@ -2615,6 +2708,31 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             0.2,
           );
 
+          // Get severity from edge data and normalize to lowercase
+          const utilization = edge.avg_utilization || edge.utilization || 0;
+          let severity = "normal";
+          
+          if (edge.severity) {
+            // Convert to lowercase for consistent matching
+            const severityLower = edge.severity.toLowerCase();
+            if (severityLower === "critical") {
+              severity = "critical";
+            } else if (severityLower === "warning") {
+              severity = "warning";
+            } else {
+              severity = "normal";
+            }
+          } else {
+            // Calculate severity based on utilization if not provided
+            if (utilization >= 85) {
+              severity = "critical";
+            } else if (utilization >= 41) {
+              severity = "warning";
+            } else {
+              severity = "normal";
+            }
+          }
+
           return {
             type: "Feature" as const,
             properties: {
@@ -2628,8 +2746,9 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
               traffic_95_out: edge.total_traffic_95_out || edge.traffic_95_out,
               traffic_max_in: edge.total_traffic_max_in || edge.traffic_max_in,
               traffic_max_out: edge.total_traffic_max_out || edge.traffic_max_out,
-              utilization: edge.avg_utilization || edge.utilization,
+              utilization: utilization,
               link_count: edge.link_count || 1,
+              severity: severity,
               details: JSON.stringify(edge.details || []),
             },
             geometry: {
@@ -2678,23 +2797,37 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
         source: "ruasrekapsto",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#10B981",
-          "line-width": 4,
-          "line-opacity": 0.15,
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "normal", "#10B981",    // Green for normal (0-40%)
+            "warning", "#F59E0B",   // Orange for warning (41-84%)
+            "critical", "#EF4444",  // Red for critical (85-100%)
+            "#10B981"               // Default green
+          ],
+          "line-width": 8, // Increased from 4 to 8
+          "line-opacity": 0.10, // Increased from 0.15 to 0.3
           "line-blur": 2,
         },
       });
 
-      // Add line layer
+      // Add line layer - Make it thicker and more visible
       map.current.addLayer({
         id: "ruas-rekap-sto-lines",
         type: "line",
         source: "ruasrekapsto",
         filter: ["==", ["geometry-type"], "LineString"],
         paint: {
-          "line-color": "#059669",
-          "line-width": 0.8,
-          "line-opacity": 0.5,
+          "line-color": [
+            "match",
+            ["get", "severity"],
+            "normal", "#10B981",    // Green for normal (0-40%)
+            "warning", "#F59E0B",   // Orange for warning (41-84%)
+            "critical", "#EF4444",  // Red for critical (85-100%)
+            "#059669"               // Default green
+          ],
+          "line-width": 2, // Increased from 0.8 to 2
+          "line-opacity": 0.9, // Increased from 0.5 to 0.9
         },
       });
 
@@ -3322,7 +3455,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             "#3498DB", // default color
           ],
           "line-width": 10,
-          "line-opacity": 0.3,
+          "line-opacity": 0.10,
           "line-blur": 6,
         },
       });
