@@ -6,6 +6,7 @@ import { SerializedGraph } from "graphology-types";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+// import Papa from "papaparse";
 // import { FiMapPin, FiUpload, FiX } from "react-icons/fi";
 // import { useNavigate } from "react-router-dom";
 import Sigma from "sigma";
@@ -221,25 +222,28 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           throw new Error("Failed to load capacity data");
         }
         const csvText = await response.text();
-        const lines = csvText.split("\n");
-        const headers = lines[0].split(",").map((h) => h.replace(/"/g, "").trim());
-
-        const data = lines
-          .slice(1)
-          .filter((line) => line.trim())
-          .map((line) => {
-            const values = line.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g) || [];
-            const row: Record<string, string> = {};
-            headers.forEach((header, index) => {
-              if (values[index]) {
-                row[header] = values[index].replace(/^"|"$/g, "").trim();
-              }
+        
+        // Use proper CSV parsing
+        const Papa = require('papaparse');
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results: any) => {
+            // Filter data to only include rows with valid latitude and longitude
+            const validData = results.data.filter((row: any) => {
+              const lat = parseFloat(row.latitude);
+              const lon = parseFloat(row.longitude);
+              return !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
             });
-            return row;
-          })
-          .filter((row) => row.longitude && row.latitude);
-
-        setCapacityData(data);
+            
+            setCapacityData(validData);
+            // eslint-disable-next-line no-console
+            console.log(`Loaded ${validData.length} capacity records`);
+          },
+          error: (error: any) => {
+            throw new Error(`CSV parsing error: ${error.message}`);
+          },
+        });
       } catch (error) {
         // eslint-disable-next-line no-console
         console.error("Error loading capacity data:", error);
@@ -351,73 +355,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   useEffect(() => {
     const loadRuasRekapData = async () => {
       try {
-        // Map layer selection to file names
-        const layerFileMap: Record<string, string> = {
-          // TERA Layers
-          "tera-tera": "/ruas-rekap/trunk_all_tera_tera_layer.json",
-          "tera-metro": "/ruas-rekap/trunk_all_tera_metro_layer.json",
-          "tera-swc": "/ruas-rekap/trunk_all_tera_swc_layer.json",
-          "tera-pevoice": "/ruas-rekap/trunk_all_tera_pevoice_layer.json",
-          "tera-pemobile": "/ruas-rekap/trunk_all_tera_pemobile_layer.json",
-          "tera-pehsi": "/ruas-rekap/trunk_all_tera_pehsi_layer.json",
-          "tera-pehdc": "/ruas-rekap/trunk_all_tera_pehdc_layer.json",
-          "tera-cgw": "/ruas-rekap/trunk_all_tera_cgw_layer.json",
-          // METRO Layers
-          "trunk_all_metro_metro": "/ruas-rekap/trunk_all_metro_metro_layer.json",
-          "trunk_all_metro_spine": "/ruas-rekap/trunk_all_metro_spine_layer.json",
-          "trunk_all_metro_dcn": "/ruas-rekap/trunk_all_metro_dcn_layer.json",
-          "trunk_all_metro_bras": "/ruas-rekap/trunk_all_metro_bras_layer.json",
-          "trunk_all_metro_cdn": "/ruas-rekap/trunk_all_metro_cdn_layer.json",
-          "trunk_all_metro_cndc": "/ruas-rekap/trunk_all_metro_cndc_layer.json",
-          "trunk_all_metro_wac": "/ruas-rekap/trunk_all_metro_wac_layer.json",
-          "trunk_all_metro_wag": "/ruas-rekap/trunk_all_metro_wag_layer.json",
-          "trunk_all_metro_pedatin": "/ruas-rekap/trunk_all_metro_pedatin_layer.json",
-          "trunk_all_metro_pehsi": "/ruas-rekap/trunk_all_metro_pehsi_layer.json",
-          "trunk_all_metro_pevoice": "/ruas-rekap/trunk_all_metro_pevoice_layer.json",
-          "trunk_all_metro_rantsel": "/ruas-rekap/trunk_all_metro_rantsel_layer.json",
-          "trunk_all_metro_twamp": "/ruas-rekap/trunk_all_metro_twamp_layer.json",
-          "trunk_all_metro_starlink": "/ruas-rekap/trunk_all_metro_starlink_layer.json",
-       // PE Layers
-  "trunk_all_pe_spine": "/ruas-rekap/trunk_all_pe_spine_layer.json",
-  "trunk_all_pe_teradatin": "/ruas-rekap/trunk_all_pe_teradatin_layer.json",
-  "trunk_all_pe_cdn": "/ruas-rekap/trunk_all_pe_cdn_layer.json",
-  "trunk_all_pe_wac": "/ruas-rekap/trunk_all_pe_wac_layer.json",
-  "trunk_all_pe_wag": "/ruas-rekap/trunk_all_pe_wag_layer.json",
-
-  // PEMOBILE Layers
-  "trunk_all_pemobile_pemobile": "/ruas-rekap/trunk_all_pemobile_pemobile_layer.json",
-  "trunk_all_pemobile_metro": "/ruas-rekap/trunk_all_pemobile_metro_layer.json",
-  "trunk_all_pemobile_rantsel": "/ruas-rekap/trunk_all_pemobile_rantsel_layer.json",
-  "trunk_all_pemobile_it_agg": "/ruas-rekap/trunk_all_pemobile_it_agg_layer.json",
-  "trunk_all_pemobile_cps": "/ruas-rekap/trunk_all_pemobile_cps_layer.json",
-  "trunk_all_pemobile_blf": "/ruas-rekap/trunk_all_pemobile_blf_layer.json",
-  "trunk_all_pemobile_twamp": "/ruas-rekap/trunk_all_pemobile_twamp_layer.json",
-
-  // PEHSI Layers
-  "trunk_all_pehsi_swc": "/ruas-rekap/trunk_all_pehsi_swc_layer.json",
-  "trunk_all_pehsi_ebr": "/ruas-rekap/trunk_all_pehsi_ebr_layer.json",
-  "trunk_all_pehsi_lb": "/ruas-rekap/trunk_all_pehsi_lb_layer.json",
-  "trunk_all_pehsi_sig": "/ruas-rekap/trunk_all_pehsi_sig_layer.json",
-
-  // PETRANSIT Layers
-  "trunk_all_petransit_ebr": "/ruas-rekap/trunk_all_petransit_ebr_layer.json",
-
-  // BNG/BRAS Layers
-  "trunk_all_me_bngtsel": "/ruas-rekap/trunk_all_me_bngtsel_layer.json",
-  "trunk_all_bngtsel_pehsi": "/ruas-rekap/trunk_all_bngtsel_pehsi_layer.json",
-  "trunk_all_bras_pehsi": "/ruas-rekap/trunk_all_bras_pehsi_layer.json",
-
-  // ALLOT Layers
-  "trunk_all_allot_pehsi": "/ruas-rekap/trunk_all_allot_pehsi_layer.json",
-
-  // ACCESS Layers
-  "trunk_all_nodeb_metro": "/ruas-rekap/trunk_all_nodeb_metro_layer.json",
-  "trunk_all_olt_metro": "/ruas-rekap/trunk_all_olt_metro_layer.json"
-       
-       
-        };
-
-        const filePath = layerFileMap[selectedRuasLayer] || layerFileMap["tera-tera"];
+        // Use trunk_all.json from ruas-rekap folder
+        const filePath = "/ruas-rekap/trunk_all.json";
         const response = await fetch(filePath);
         if (!response.ok) {
           throw new Error("Failed to load ruas rekap data");
@@ -1282,6 +1221,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: "10G",
             type: "CAPACITY",
             nodeData: props, // Pass all node properties
+            linkDetails: [], // No link details for capacity layer
             clickedType: 'node', // Indicate that a node was clicked
           });
           setShowLinkDetails(true);
@@ -1795,6 +1735,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
                 source_label: edge.source_label || edge.source,
                 target_label: edge.target_label || edge.target,
                 capacity: edge.total_capacity || edge.capacity || 0,
+                traffic_max: edge.traffic_max || 0,
                 layer: edge.layer_list || edge.layer || "N/A",
                 traffic_in_log: edge.traffic_in_log || 0,
                 traffic_out_log: edge.traffic_out_log || 0,
@@ -2182,7 +2123,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
           const from = props?.source_label || props?.source || "Node A";
           const to = props?.target_label || props?.target || "Node B";
-          const capacityGbps = props?.capacity ? (props.capacity / 1000000000).toFixed(2) : "N/A";
+          const capacityGbps = props?.capacity ? (props.capacity / 1000).toFixed(2) : "N/A";
           const linkCount = props?.link_count || 1;
 
           // Parse details if available
@@ -2247,8 +2188,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             props?.traffic_in_psk || 0,
             props?.traffic_out_psk || 0
           );
-          const utilization = props?.capacity && props.capacity > 0
-            ? ((maxTraffic / props.capacity) * 100)
+          // props?.capacity is in Mbps, convert to bytes/sec (1 Mbps = 125,000 bytes/sec)
+          const capacityInBytesPerSec = props?.capacity ? props.capacity * 125000 : 1;
+          const utilization = capacityInBytesPerSec > 0
+            ? ((maxTraffic / capacityInBytesPerSec) * 100)
             : 0;
 
           // eslint-disable-next-line no-console
@@ -2264,7 +2207,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             from,
             to,
             description: props?.ruas || `${from} → ${to}`,
-            bandwidth_mbps: props?.capacity ? props.capacity / 1000000 : 10000,
+            bandwidth_mbps: props?.capacity ? props.capacity : 10000,
             utilization: utilization,
             latency: 5 + Math.random() * 10,
             packetLoss: Math.random() * 0.1,
@@ -3946,6 +3889,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: "10G",
             type: "NODE_EDGES",
             nodeData: props, // Pass all node properties
+            linkDetails: props?.details || [], // Pass node details as linkDetails
             clickedType: 'node', // Indicate that a node was clicked
           });
           setShowLinkDetails(true);
@@ -4013,6 +3957,10 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const targetCapacityMbps = props?.target_capacity_total || 10000;
           const avgCapacityMbps = (sourceCapacityMbps + targetCapacityMbps) / 2;
 
+          // Find link details from source node
+          const sourceNode = nodeEdgesData?.nodes?.find(n => n.id === props.source);
+          const linkDetails = sourceNode?.details || [];
+
           setSelectedLink({
             from,
             to,
@@ -4025,6 +3973,7 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             totalCapacity: `${(avgCapacityMbps / 1000).toFixed(1)}G`,
             type: "L2_AGGREGATION",
             nodeData: props, // Pass edge properties
+            linkDetails: linkDetails, // Pass actual link details from source node
             clickedType: 'edge', // Indicate that an edge was clicked
           });
           setShowLinkDetails(true);

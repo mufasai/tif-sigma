@@ -70,6 +70,8 @@ const generateLinkDetails = (connection: LinkDetailsPanelProps['connection']): L
 
 export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopologyVisible = false }: LinkDetailsPanelProps) {
   console.log("{{testtestest}}",connection)
+  console.log("{{DEBUG}} connection.linkDetails:", connection.linkDetails);
+  console.log("{{DEBUG}} connection.totalCapacity:", connection.totalCapacity);
   const linkDetails = generateLinkDetails(connection);
   const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
   const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
@@ -86,21 +88,21 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
   let totalCapacity: string;
 
   if (connection.linkDetails && connection.linkDetails.length > 0) {
-    // Sum all capacities from linkDetails and convert to Gbps
-    const totalCapacityBps = connection.linkDetails.reduce((sum, detail) => {
+    // Sum all capacities from linkDetails - capacity field is in Mbps, convert to Gbps
+    const totalCapacityMbps = connection.linkDetails.reduce((sum, detail) => {
       const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
       return sum + capacity;
     }, 0);
 
-    if (totalCapacityBps > 0) {
-      const totalGbps = totalCapacityBps / 1000000000;
+    if (totalCapacityMbps > 0) {
+      const totalGbps = totalCapacityMbps / 1000; // Convert Mbps to Gbps
       totalCapacity = formatCapacity(totalGbps);
     } else {
       // If linkDetails exist but no valid capacity, use fallback
       totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
     }
   } else {
-    // No linkDetails, use provided totalCapacity or fallback
+    // No linkDetails, use provided totalCapacity directly (already in Gbps format from MapLibreView)
     totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
   }
 
@@ -491,11 +493,10 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                   {connection.linkDetails && connection.linkDetails.length > 0 ? (
                     // Show detailed link data if available
                     connection.linkDetails.map((detail, index) => {
-                      const capacity = typeof detail.capacity === 'number' ? (detail.capacity / 1000000000).toFixed(2) + ' Gbps' : 'N/A';
-                      const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000).toFixed(2) : 'N/A';
-                      const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000).toFixed(2) : 'N/A';
-                      const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000).toFixed(2) : 'N/A';
-                      const traffic_out_psk = typeof detail.traffic_out_psk === 'number' ? (detail.traffic_out_psk / 1000000).toFixed(2) : 'N/A';
+                      const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000000).toFixed(2) : 'N/A';
+                      const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000000).toFixed(2) : 'N/A';
+                      const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000000).toFixed(2) : 'N/A';
+                      const traffic_out_psk = typeof detail.traffic_out_psk === 'number' ? (detail.traffic_out_psk / 1000000000).toFixed(2) : 'N/A';
                       const utilization = typeof detail.utilization === 'number' ? detail.utilization.toFixed(2) : '0.00';
 
                       return (
@@ -534,7 +535,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                             {String(detail.port_log || 'N/A')}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#4F46E5', textAlign: 'right', fontWeight: '600' }}>
-                            {capacity}
+                            {typeof detail.capacity === 'number' && detail.capacity > 0 ? (detail.capacity / 1000).toFixed(2) + ' Gbps' : 'N/A'}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#3B82F6', textAlign: 'right', fontWeight: '600' }}>
                             {traffic_in_log}
