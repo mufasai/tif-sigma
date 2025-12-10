@@ -69,11 +69,88 @@ const generateLinkDetails = (connection: LinkDetailsPanelProps['connection']): L
 };
 
 export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopologyVisible = false }: LinkDetailsPanelProps) {
-  console.log("{{testtestest}}",connection)
+  console.log("{{testtestest}}", connection)
   console.log("{{DEBUG}} connection.linkDetails:", connection.linkDetails);
   console.log("{{DEBUG}} connection.totalCapacity:", connection.totalCapacity);
-  const linkDetails = generateLinkDetails(connection);
-  const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
+
+  // Check if linkDetails contains trunk_all.json data (with capacity, traffic fields)
+  const hasTrafficData = connection.linkDetails && connection.linkDetails.length > 0 &&
+    connection.linkDetails[0] &&
+    (typeof connection.linkDetails[0].capacity !== 'undefined' ||
+      typeof connection.linkDetails[0].traffic_in_log !== 'undefined');
+
+  // Use real data from trunk_all.json if available, otherwise generate synthetic data
+  let linkDetails: LinkDetail[];
+  let totalCapacityValue = 0;
+  let avgTrafficInLog = 0;
+  let avgTrafficOutLog = 0;
+  let avgTrafficInPsk = 0;
+  let avgTrafficOutPsk = 0;
+  let avgUtilization = 0;
+
+  if (hasTrafficData && connection.linkDetails) {
+    // Process trunk_all.json data - convert from real data format
+    const trunkData = connection.linkDetails;
+
+    // Calculate aggregated metrics from all details - use SUM for traffic, capacity
+    totalCapacityValue = trunkData.reduce((sum, detail) => {
+      const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
+      return sum + capacity;
+    }, 0);
+
+    // Sum all traffic values (not average) - traffic is in bps from trunk_all.json
+    avgTrafficInLog = trunkData.reduce((sum, detail) => {
+      const traffic = typeof detail.traffic_in_log === 'number' ? detail.traffic_in_log : 0;
+      return sum + traffic;
+    }, 0);
+
+    avgTrafficOutLog = trunkData.reduce((sum, detail) => {
+      const traffic = typeof detail.traffic_out_log === 'number' ? detail.traffic_out_log : 0;
+      return sum + traffic;
+    }, 0);
+
+    avgTrafficInPsk = trunkData.reduce((sum, detail) => {
+      const traffic = typeof detail.traffic_in_psk === 'number' ? detail.traffic_in_psk : 0;
+      return sum + traffic;
+    }, 0);
+
+    avgTrafficOutPsk = trunkData.reduce((sum, detail) => {
+      const traffic = typeof detail.traffic_out_psk === 'number' ? detail.traffic_out_psk : 0;
+      return sum + traffic;
+    }, 0);
+
+    // Average utilization across all links
+    const validUtilCount = trunkData.filter(d => typeof d.utilization === 'number').length;
+    avgUtilization = validUtilCount > 0 ? trunkData.reduce((sum, detail) => {
+      const util = typeof detail.utilization === 'number' ? detail.utilization : 0;
+      return sum + util;
+    }, 0) / validUtilCount : 0;
+
+    // Convert trunk data to LinkDetail format for display
+    linkDetails = trunkData.map((detail, index) => {
+      const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
+      const utilization = typeof detail.utilization === 'number' ? detail.utilization : 0;
+      const portLog = detail.port_log || 'N/A';
+
+      return {
+        id: index + 1,
+        linkName: detail.ruas || `Link-${index + 1}`,
+        capacity: `${capacity}M`,
+        utilization: Math.round(utilization),
+        status: utilization < 90 ? 'Active' : utilization < 95 ? 'Warning' : 'Critical',
+        latency: '10ms', // Placeholder, not in trunk_all
+        packetLoss: '0%', // Placeholder, not in trunk_all
+        interface: portLog,
+        vlan: detail.layer ? parseInt(detail.layer.split('-')[0]) : 0,
+        qos: detail.trunk_layer?.includes('tera') ? 'Premium' : 'Standard'
+      };
+    });
+  } else {
+    // Use synthetic data generation
+    linkDetails = generateLinkDetails(connection);
+    avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
+  }
+
   const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
 
   // Helper function to format capacity with K suffix for thousands
@@ -87,7 +164,11 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
   // Calculate total capacity - prioritize linkDetails if available
   let totalCapacity: string;
 
-  if (connection.linkDetails && connection.linkDetails.length > 0) {
+  if (hasTrafficData && totalCapacityValue > 0) {
+    // For trunk_all.json data, capacity is in Mbps
+    const totalGbps = totalCapacityValue / 1000;
+    totalCapacity = formatCapacity(totalGbps);
+  } else if (connection.linkDetails && connection.linkDetails.length > 0) {
     // Sum all capacities from linkDetails - capacity field is in Mbps, convert to Gbps
     const totalCapacityMbps = connection.linkDetails.reduce((sum, detail) => {
       const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
@@ -493,10 +574,11 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                   {connection.linkDetails && connection.linkDetails.length > 0 ? (
                     // Show detailed link data if available
                     connection.linkDetails.map((detail, index) => {
-                      const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000000).toFixed(2) : 'N/A';
-                      const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000000).toFixed(2) : 'N/A';
-                      const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000000).toFixed(2) : 'N/A';
-                      const traffic_out_psk = typeof detail.traffic_out_psk === 'number' ? (detail.traffic_out_psk / 1000000000).toFixed(2) : 'N/A';
+                      // Traffic values from trunk_all.json are in bps, convert to Mbps for display
+                      const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000).toFixed(2) : 'N/A';
+                      const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000).toFixed(2) : 'N/A';
+                      const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000).toFixed(2) : 'N/A';
+                      const traffic_out_psk = typeof detail.traffic_out_psk === 'number' ? (detail.traffic_out_psk / 1000000).toFixed(2) : 'N/A';
                       const utilization = typeof detail.utilization === 'number' ? detail.utilization.toFixed(2) : '0.00';
 
                       return (
@@ -551,7 +633,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        
+
                               <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
                                 {utilization}
                               </span>
@@ -569,8 +651,8 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                               <span style={{ fontWeight: '600', color: '#3B82F6' }}>
-                                {typeof detail.source_port_used === 'number' && typeof detail.source_port_count === 'number' 
-                                  ? `${detail.source_port_used}/${detail.source_port_count}` 
+                                {typeof detail.source_port_used === 'number' && typeof detail.source_port_count === 'number'
+                                  ? `${detail.source_port_used}/${detail.source_port_count}`
                                   : 'N/A'}
                               </span>
                               <span style={{ fontSize: '9px', color: '#6B7280' }}>
@@ -581,8 +663,8 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                               <span style={{ fontWeight: '600', color: '#10B981' }}>
-                                {typeof detail.target_port_used === 'number' && typeof detail.target_port_count === 'number' 
-                                  ? `${detail.target_port_used}/${detail.target_port_count}` 
+                                {typeof detail.target_port_used === 'number' && typeof detail.target_port_count === 'number'
+                                  ? `${detail.target_port_used}/${detail.target_port_count}`
                                   : 'N/A'}
                               </span>
                               <span style={{ fontSize: '9px', color: '#6B7280' }}>
@@ -727,7 +809,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                 gridTemplateColumns: 'repeat(2, 1fr)',
                 gap: '12px'
               }}>
-                {/* Display edge properties from nodeData (edge data outside details array) */}
+                {/* Display edge properties from nodeData, but use calculated values for traffic fields */}
                 {Object.entries(connection.nodeData)
                   .filter(([key]) =>
                     // Exclude details array and some internal fields that are not useful
@@ -744,16 +826,40 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     let formattedValue: string;
                     let valueColor = '#1F2937';
 
-                    // Special formatting for specific fields
-                    if (key.includes('capacity') && typeof value === 'number') {
+                    // Special formatting for specific fields - USE CALCULATED VALUES FROM linkDetails for traffic (in Gbps)
+                    if ((key === 'capacity' || key === 'total_capacity') && typeof value === 'number') {
+                      // Use totalCapacityValue from linkDetails if available, otherwise use nodeData value
+                      const capacityToUse = hasTrafficData && totalCapacityValue > 0 ? totalCapacityValue : value;
+                      formattedValue = `${(capacityToUse / 1000).toFixed(2)} Gbps`;
+                      valueColor = '#8B5CF6';
+                    } else if (key === 'traffic_in_log') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficInLog : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#3B82F6';
+                    } else if (key === 'traffic_out_log') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficOutLog : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#10B981';
+                    } else if (key === 'traffic_in_psk') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficInPsk : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#6366F1';
+                    } else if (key === 'traffic_out_psk') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficOutPsk : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#14B8A6';
+                    } else if (key === 'traffic_max' && typeof value === 'number') {
                       formattedValue = `${(value / 1000000000).toFixed(2)} Gbps`;
-                      valueColor = '#7C3AED';
-                    } else if (key.includes('traffic') && typeof value === 'number') {
-                      formattedValue = `${(value / 1000000).toFixed(2)} Mbps`;
-                      valueColor = key.includes('in') ? '#3B82F6' : '#10B981';
-                    } else if (key.includes('utilization') && typeof value === 'number') {
-                      formattedValue = `${value.toFixed(2)}%`;
-                      valueColor = value > 80 ? '#EF4444' : value > 60 ? '#F59E0B' : '#10B981';
+                      valueColor = '#F59E0B';
+                    } else if (key === 'utilization') {
+                      // Use calculated average from linkDetails
+                      const utilValue = hasTrafficData ? avgUtilization : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${utilValue.toFixed(2)}%`;
+                      valueColor = utilValue > 80 ? '#EF4444' : utilValue > 60 ? '#F59E0B' : '#10B981';
                     } else if (key === 'link_count' && typeof value === 'number') {
                       formattedValue = String(value);
                       valueColor = '#8B5CF6';
@@ -827,22 +933,68 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               gridTemplateColumns: 'repeat(2, 1fr)',
               gap: '16px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Average Latency</span>
-                <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgLatency.toFixed(1)} ms</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Packet Loss</span>
-                <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgPacketLoss.toFixed(3)}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Availability (24h)</span>
-                <span style={{ fontSize: '14px', color: '#10B981', fontWeight: '700' }}>99.{Math.floor(Math.random() * 10 + 90)}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Total Traffic (24h)</span>
-                <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{(Math.random() * 10 + 1).toFixed(1)} TB</span>
-              </div>
+              {/* Show real traffic data from trunk_all.json if available */}
+              {hasTrafficData ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Capacity</span>
+                    <span style={{ fontSize: '14px', color: '#4F46E5', fontWeight: '700' }}>{(totalCapacityValue / 1000).toFixed(2)} Gbps</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic In (LOG)</span>
+                    <span style={{ fontSize: '14px', color: '#3B82F6', fontWeight: '700' }}>
+                      {(avgTrafficInLog / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic Out (LOG)</span>
+                    <span style={{ fontSize: '14px', color: '#10B981', fontWeight: '700' }}>
+                      {(avgTrafficOutLog / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic In (PSK)</span>
+                    <span style={{ fontSize: '14px', color: '#6366F1', fontWeight: '700' }}>
+                      {(avgTrafficInPsk / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic Out (PSK)</span>
+                    <span style={{ fontSize: '14px', color: '#14B8A6', fontWeight: '700' }}>
+                      {(avgTrafficOutPsk / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Avg Utilization</span>
+                    <span style={{
+                      fontSize: '14px',
+                      color: avgUtilization > 80 ? '#EF4444' : avgUtilization > 60 ? '#F59E0B' : '#10B981',
+                      fontWeight: '700'
+                    }}>
+                      {avgUtilization.toFixed(2)}%
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Average Latency</span>
+                    <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgLatency.toFixed(1)} ms</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Packet Loss</span>
+                    <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgPacketLoss.toFixed(3)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Availability (24h)</span>
+                    <span style={{ fontSize: '14px', color: '#10B981', fontWeight: '700' }}>99.{Math.floor(Math.random() * 10 + 90)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Total Traffic (24h)</span>
+                    <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{(Math.random() * 10 + 1).toFixed(1)} TB</span>
+                  </div>
+                </>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Link Type</span>
                 <span style={{
@@ -889,7 +1041,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                 {Object.entries(connection.nodeData)
                   .filter(([key]) =>
                     // Exclude certain keys that are not useful to display
-                    !['topology', 'details', 'x', 'y', 'coordinates', 'source_lon', 'source_lat', 'target_lon', 'target_lat' , 'platform'].includes(key)
+                    !['topology', 'details', 'x', 'y', 'coordinates', 'source_lon', 'source_lat', 'target_lon', 'target_lat', 'platform'].includes(key)
                   )
                   .map(([key, value]) => {
                     // Format the key to be more readable
