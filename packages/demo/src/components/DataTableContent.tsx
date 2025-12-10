@@ -343,10 +343,7 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
             Capacity
           </th>
           <th style={{ padding: "14px 16px", textAlign: "right", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Traffic In
-          </th>
-          <th style={{ padding: "14px 16px", textAlign: "right", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Traffic Out
+            Traffic Max
           </th>
           <th style={{ padding: "14px 16px", textAlign: "right", fontSize: "12px", fontWeight: "700", color: "#374151", borderBottom: "2px solid rgba(0,0,0,0.08)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
             Utilization
@@ -363,9 +360,20 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
         {edges.map((edge, index) => {
           const isExpanded = expandedRows.has(edge.id);
           const hasDetails = edge.details && edge.details.length > 0;
-          const capacityGbps = edge.total_capacity ? (edge.total_capacity / 1000000000).toFixed(2) : "N/A";
-          const trafficInGbps = edge.total_traffic_95_in ? (edge.total_traffic_95_in / 1000000000).toFixed(2) : "0";
-          const trafficOutGbps = edge.total_traffic_95_out ? (edge.total_traffic_95_out / 1000000000).toFixed(2) : "0";
+
+          // Calculate total capacity from details array (sum all capacities in Mbps, then convert to Gbps)
+          let totalCapacityMbps = 0;
+          if (hasDetails) {
+            totalCapacityMbps = (edge.details || []).reduce((sum: number, detail: any) => {
+              const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
+              return sum + capacity;
+            }, 0);
+          } else {
+            totalCapacityMbps = edge.total_capacity || 0;
+          }
+          const capacityGbps = totalCapacityMbps > 0 ? (totalCapacityMbps / 1000).toFixed(2) : "0";
+
+          const trafficMaxGbps = edge.traffic_max ? (edge.traffic_max / 1000000000).toFixed(2) : (edge.total_traffic_max_in ? (Math.max(edge.total_traffic_max_in, edge.total_traffic_max_out || 0) / 1000000000).toFixed(2) : "0");
           const utilization = edge.avg_utilization || 0;
           
           let utilizationColor = "#10B981";
@@ -423,11 +431,8 @@ export function EdgesTable({ edges, expandedRows, onToggleExpand }: EdgesTablePr
                 <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: "700", color: "#8B5CF6", textAlign: "right" }}>
                   {capacityGbps} Gbps
                 </td>
-                <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: "600", color: "#3B82F6", textAlign: "right" }}>
-                  {trafficInGbps} Gbps
-                </td>
-                <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: "600", color: "#10B981", textAlign: "right" }}>
-                  {trafficOutGbps} Gbps
+                <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: "600", color: "#6366F1", textAlign: "right" }}>
+                  {trafficMaxGbps} Gbps
                 </td>
                 <td style={{ padding: "12px 16px", textAlign: "right" }}>
                   <span style={{
