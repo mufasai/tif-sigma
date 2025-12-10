@@ -197,7 +197,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
       totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
     }
   } else {
-    // No linkDetails, use provided totalCapacity or fallback
+    // No linkDetails, use provided totalCapacity directly (already in Gbps format from MapLibreView)
     totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
   }
 
@@ -683,7 +683,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                             {String(detail.port_log || 'N/A')}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#4F46E5', textAlign: 'right', fontWeight: '600' }}>
-                            {capacity}
+                            {typeof detail.capacity === 'number' && detail.capacity > 0 ? (detail.capacity / 1000).toFixed(2) + ' Gbps' : 'N/A'}
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#3B82F6', textAlign: 'right', fontWeight: '600' }}>
                             {traffic_in_log}
@@ -702,7 +702,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        
+
                               <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
                                 {utilization}%
                               </span>
@@ -1010,22 +1010,68 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               gridTemplateColumns: 'repeat(2, 1fr)',
               gap: '16px'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Average Latency</span>
-                <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgLatency.toFixed(1)} ms</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Packet Loss</span>
-                <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgPacketLoss.toFixed(3)}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Availability (24h)</span>
-                <span style={{ fontSize: '14px', color: '#10B981', fontWeight: '700' }}>99.{Math.floor(Math.random() * 10 + 90)}%</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Total Traffic (24h)</span>
-                <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{(Math.random() * 10 + 1).toFixed(1)} TB</span>
-              </div>
+              {/* Show real traffic data from trunk_all.json if available */}
+              {hasTrafficData ? (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Capacity</span>
+                    <span style={{ fontSize: '14px', color: '#4F46E5', fontWeight: '700' }}>{(totalCapacityValue / 1000).toFixed(2)} Gbps</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic In (LOG)</span>
+                    <span style={{ fontSize: '14px', color: '#3B82F6', fontWeight: '700' }}>
+                      {(avgTrafficInLog / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic Out (LOG)</span>
+                    <span style={{ fontSize: '14px', color: '#10B981', fontWeight: '700' }}>
+                      {(avgTrafficOutLog / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic In (PSK)</span>
+                    <span style={{ fontSize: '14px', color: '#6366F1', fontWeight: '700' }}>
+                      {(avgTrafficInPsk / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Traffic Out (PSK)</span>
+                    <span style={{ fontSize: '14px', color: '#14B8A6', fontWeight: '700' }}>
+                      {(avgTrafficOutPsk / 1000000000).toFixed(2)} Gbps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Avg Utilization</span>
+                    <span style={{
+                      fontSize: '14px',
+                      color: avgUtilization > 80 ? '#EF4444' : avgUtilization > 60 ? '#F59E0B' : '#10B981',
+                      fontWeight: '700'
+                    }}>
+                      {avgUtilization.toFixed(2)}%
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Average Latency</span>
+                    <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgLatency.toFixed(1)} ms</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Packet Loss</span>
+                    <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{avgPacketLoss.toFixed(3)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Availability (24h)</span>
+                    <span style={{ fontSize: '14px', color: '#10B981', fontWeight: '700' }}>99.{Math.floor(Math.random() * 10 + 90)}%</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Total Traffic (24h)</span>
+                    <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: '700' }}>{(Math.random() * 10 + 1).toFixed(1)} TB</span>
+                  </div>
+                </>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>Link Type</span>
                 <span style={{
@@ -1072,7 +1118,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                 {Object.entries(connection.nodeData)
                   .filter(([key]) =>
                     // Exclude certain keys that are not useful to display
-                    !['topology', 'details', 'x', 'y', 'coordinates', 'source_lon', 'source_lat', 'target_lon', 'target_lat' , 'platform'].includes(key)
+                    !['topology', 'details', 'x', 'y', 'coordinates', 'source_lon', 'source_lat', 'target_lon', 'target_lat', 'platform'].includes(key)
                   )
                   .map(([key, value]) => {
                     // Format the key to be more readable
