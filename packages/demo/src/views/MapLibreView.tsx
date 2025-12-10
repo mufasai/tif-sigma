@@ -2084,14 +2084,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const nodeId = props?.id;
           const nodeLabel = props?.label || props?.id || "Node";
 
-          // Parse node details from properties
-          let nodeDetails = [];
+          // Parse node details from properties - try GeoJSON first, then fallback to ruasRekapData
+          let nodeDetails: any[] = [];
           try {
             if (props?.details && typeof props.details === "string") {
               nodeDetails = JSON.parse(props.details);
             }
           } catch (_error) {
             /* empty */
+          }
+
+          // If nodeDetails is empty, try to get from ruasRekapData directly
+          if (nodeDetails.length === 0 && ruasRekapData?.nodes) {
+            const nodeFromData = ruasRekapData.nodes.find((n: any) => n.id === nodeId);
+            if (nodeFromData?.details && Array.isArray(nodeFromData.details)) {
+              nodeDetails = nodeFromData.details;
+              // eslint-disable-next-line no-console
+              console.log('Node details loaded from ruasRekapData:', nodeDetails.length, 'items');
+            }
           }
 
           // Find all edges connected to this node
@@ -2921,14 +2931,24 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             )
             .addTo(map.current!);
 
-          // Parse node details if available
-          let nodeDetails = [];
+          // Parse node details if available - try GeoJSON first, then fallback to ruasRekapStoData
+          let nodeDetails: any[] = [];
           try {
             if (props?.details && typeof props.details === "string") {
               nodeDetails = JSON.parse(props.details);
             }
           } catch (_error) {
             /* empty */
+          }
+
+          // If nodeDetails is empty, try to get from ruasRekapStoData directly
+          if (nodeDetails.length === 0 && ruasRekapStoData?.nodes) {
+            const nodeFromData = ruasRekapStoData.nodes.find((n: any) => n.id === nodeId);
+            if (nodeFromData?.details && Array.isArray(nodeFromData.details)) {
+              nodeDetails = nodeFromData.details;
+              // eslint-disable-next-line no-console
+              console.log('STO Node details loaded from ruasRekapStoData:', nodeDetails.length, 'items');
+            }
           }
 
           // Show LinkDetailsPanel with first edge if available

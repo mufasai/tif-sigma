@@ -1,4 +1,4 @@
-import { X, Activity, TrendingUp, AlertTriangle, Zap, Clock, Signal, Network, Circle, GitBranch } from 'lucide-react';
+import { X, Activity, TrendingUp, AlertTriangle, Zap, Signal, Network, Circle, GitBranch } from 'lucide-react';
 import React, { ReactNode } from 'react';
 
 interface LinkDetailsPanelProps {
@@ -69,10 +69,107 @@ const generateLinkDetails = (connection: LinkDetailsPanelProps['connection']): L
 };
 
 export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopologyVisible = false }: LinkDetailsPanelProps) {
-  console.log("{{testtestest}}",connection)
-  const linkDetails = generateLinkDetails(connection);
-  const avgUtilization = linkDetails.reduce((sum, l) => sum + l.utilization, 0) / linkDetails.length;
-  const activeLinks = linkDetails.filter(l => l.status === 'Active').length;
+  console.log("LinkDetailsPanel - connection data:", connection);
+  console.log("LinkDetailsPanel - linkDetails:", connection.linkDetails);
+  console.log("LinkDetailsPanel - clickedType:", connection.clickedType);
+  if (connection.linkDetails && connection.linkDetails.length > 0) {
+    console.log("LinkDetailsPanel - first linkDetail:", connection.linkDetails[0]);
+    console.log("LinkDetailsPanel - source_port_used:", connection.linkDetails[0].source_port_used, "type:", typeof connection.linkDetails[0].source_port_used);
+    console.log("LinkDetailsPanel - source_port_count:", connection.linkDetails[0].source_port_count, "type:", typeof connection.linkDetails[0].source_port_count);
+    console.log("LinkDetailsPanel - target_port_used:", connection.linkDetails[0].target_port_used, "type:", typeof connection.linkDetails[0].target_port_used);
+    console.log("LinkDetailsPanel - target_port_count:", connection.linkDetails[0].target_port_count, "type:", typeof connection.linkDetails[0].target_port_count);
+    // Log all linkDetails to see port data
+    connection.linkDetails.forEach((detail, idx) => {
+      console.log(`LinkDetailsPanel - detail[${idx}] ports:`, {
+        source_port_used: detail.source_port_used,
+        source_port_count: detail.source_port_count,
+        target_port_used: detail.target_port_used,
+        target_port_count: detail.target_port_count
+      });
+    });
+  }
+  const generatedLinkDetails = generateLinkDetails(connection);
+  const generatedAvgUtilization = generatedLinkDetails.reduce((sum, l) => sum + l.utilization, 0) / generatedLinkDetails.length;
+  // const activeLinks = generatedLinkDetails.filter(l => l.status === 'Active').length;
+
+  // Check if linkDetails contains trunk_all.json data (with capacity, traffic fields)
+  const hasTrafficData = connection.linkDetails && connection.linkDetails.length > 0 &&
+    connection.linkDetails[0] &&
+    (typeof connection.linkDetails[0].capacity !== 'undefined' ||
+      typeof connection.linkDetails[0].traffic_in_log !== 'undefined');
+
+  // Use real data from trunk_all.json if available, otherwise generate synthetic data
+  // Note: linkDetails is used for calculating avgLatency and avgPacketLoss only
+  const linkDetails = hasTrafficData ? [] : generatedLinkDetails; // Use generated data if no traffic data
+  let totalCapacityValue = 0;
+  let avgTrafficInLog = 0;
+  let avgTrafficOutLog = 0;
+  let avgTrafficInPsk = 0;
+  let avgTrafficOutPsk = 0;
+  let avgTrafficMax = 0;
+  let avgUtilization = hasTrafficData ? 0 : generatedAvgUtilization;
+
+  // Calculate traffic data from linkDetails if available
+  if (hasTrafficData && connection.linkDetails && connection.linkDetails.length > 0) {
+    // Calculate totals from all link details (capacity is in Mbps in trunk_all.json)
+    totalCapacityValue = connection.linkDetails.reduce((sum, detail) => {
+      return sum + (typeof detail.capacity === 'number' ? detail.capacity : 0);
+    }, 0);
+
+    avgTrafficInLog = connection.linkDetails.reduce((sum, detail) => {
+      return sum + (typeof detail.traffic_in_log === 'number' ? detail.traffic_in_log : 0);
+    }, 0);
+
+    avgTrafficOutLog = connection.linkDetails.reduce((sum, detail) => {
+      return sum + (typeof detail.traffic_out_log === 'number' ? detail.traffic_out_log : 0);
+    }, 0);
+
+    avgTrafficInPsk = connection.linkDetails.reduce((sum, detail) => {
+      return sum + (typeof detail.traffic_in_psk === 'number' ? detail.traffic_in_psk : 0);
+    }, 0);
+
+    avgTrafficOutPsk = connection.linkDetails.reduce((sum, detail) => {
+      return sum + (typeof detail.traffic_out_psk === 'number' ? detail.traffic_out_psk : 0);
+    }, 0);
+
+    avgTrafficMax = connection.linkDetails.reduce((sum, detail) => {
+      return sum + (typeof detail.traffic_max === 'number' ? detail.traffic_max : 0);
+    }, 0);
+
+    // Calculate average utilization from linkDetails
+    const validUtilizations = connection.linkDetails.filter(detail => typeof detail.utilization === 'number');
+    if (validUtilizations.length > 0) {
+      avgUtilization = validUtilizations.reduce((sum, detail) => {
+        return sum + (typeof detail.utilization === 'number' ? detail.utilization : 0);
+      }, 0) / validUtilizations.length;
+    }
+  }
+
+  // If no traffic data from linkDetails, try to get from nodeData (for edges)
+  if (!hasTrafficData && connection.nodeData && connection.clickedType === 'edge') {
+    // For edges, nodeData contains the aggregated traffic data
+    if (typeof connection.nodeData.traffic_max === 'number') {
+      avgTrafficMax = connection.nodeData.traffic_max;
+    }
+    if (typeof connection.nodeData.traffic_in_log === 'number') {
+      avgTrafficInLog = connection.nodeData.traffic_in_log;
+    }
+    if (typeof connection.nodeData.traffic_out_log === 'number') {
+      avgTrafficOutLog = connection.nodeData.traffic_out_log;
+    }
+    if (typeof connection.nodeData.traffic_in_psk === 'number') {
+      avgTrafficInPsk = connection.nodeData.traffic_in_psk;
+    }
+    if (typeof connection.nodeData.traffic_out_psk === 'number') {
+      avgTrafficOutPsk = connection.nodeData.traffic_out_psk;
+    }
+    if (typeof connection.nodeData.utilization === 'number') {
+      avgUtilization = connection.nodeData.utilization;
+    }
+    if (typeof connection.nodeData.capacity === 'number') {
+      totalCapacityValue = connection.nodeData.capacity;
+    }
+  }
 
   // Helper function to format capacity with K suffix for thousands
   const formatCapacity = (gbps: number): string => {
@@ -86,14 +183,14 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
   let totalCapacity: string;
 
   if (connection.linkDetails && connection.linkDetails.length > 0) {
-    // Sum all capacities from linkDetails and convert to Gbps
-    const totalCapacityBps = connection.linkDetails.reduce((sum, detail) => {
+    // Sum all capacities from linkDetails - capacity is in Mbps in trunk_all.json
+    const totalCapacityMbps = connection.linkDetails.reduce((sum, detail) => {
       const capacity = typeof detail.capacity === 'number' ? detail.capacity : 0;
       return sum + capacity;
     }, 0);
 
-    if (totalCapacityBps > 0) {
-      const totalGbps = totalCapacityBps / 1000000000;
+    if (totalCapacityMbps > 0) {
+      const totalGbps = totalCapacityMbps / 1000; // Convert Mbps to Gbps (divide by 1000)
       totalCapacity = formatCapacity(totalGbps);
     } else {
       // If linkDetails exist but no valid capacity, use fallback
@@ -104,8 +201,9 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
     totalCapacity = connection.totalCapacity || (connection.bandwidth_mbps ? `${connection.bandwidth_mbps}M` : 'N/A');
   }
 
-  const avgLatency = linkDetails.reduce((sum, l) => sum + parseFloat(l.latency), 0) / linkDetails.length;
-  const avgPacketLoss = linkDetails.reduce((sum, l) => sum + parseFloat(l.packetLoss), 0) / linkDetails.length;
+  // Calculate average latency and packet loss - use generated data for now since trunk_all.json doesn't have latency/packet loss
+  const avgLatency = generatedLinkDetails.reduce((sum, l) => sum + parseFloat(l.latency), 0) / generatedLinkDetails.length;
+  const avgPacketLoss = generatedLinkDetails.reduce((sum, l) => sum + parseFloat(l.packetLoss), 0) / generatedLinkDetails.length;
 
 
 
@@ -355,7 +453,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
             </h4>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {avgUtilization > 80 && (
+              {(hasTrafficData ? avgUtilization : generatedAvgUtilization) > 80 && (
                 <div style={{
                   padding: '8px 12px',
                   borderRadius: '8px',
@@ -364,7 +462,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                   fontSize: '12px',
                   color: '#92400E'
                 }}>
-                  <strong>Warning:</strong> High utilization detected ({avgUtilization.toFixed(0)}%) at {new Date().toLocaleTimeString()}
+                  <strong>Warning:</strong> High utilization detected ({(hasTrafficData ? avgUtilization : generatedAvgUtilization).toFixed(0)}%) at {new Date().toLocaleTimeString()}
                 </div>
               )}
               <div style={{
@@ -392,36 +490,84 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
             </div>
           </NeumorphicCard>
 
-          {/* Summary Stats Grid - Compact Single Row 4x1 Layout */}
+          {/* Summary Stats Grid - 4 Rows Layout sesuai gambar */}
           <NeumorphicCard>
-
+            {/* Row 1: CAPACITY, TRAFFIC MAX */}
             <div style={{
               display: 'flex',
-              gap: '6px'
+              gap: '6px',
+              marginBottom: '8px'
             }}>
               <StatCard
                 icon={Zap}
                 label="CAPACITY"
                 value={totalCapacity}
-                color="#4F46E5"
-              />
-              <StatCard
-                icon={TrendingUp}
-                label="AVG UTIL"
-                value={`${avgUtilization.toFixed(0)}%`}
-                color={avgUtilization > 80 ? '#EF4444' : avgUtilization > 60 ? '#F59E0B' : '#10B981'}
-              />
-              <StatCard
-                icon={Activity}
-                label="LINKS"
-                value={`${activeLinks}/${linkDetails.length}`}
                 color="#8B5CF6"
               />
               <StatCard
-                icon={Clock}
-                label="LATENCY"
-                value={`${avgLatency.toFixed(1)}ms`}
-                color="#06B6D4"
+                icon={TrendingUp}
+                label="TRAFFIC MAX"
+                value={avgTrafficMax > 0 ? `${(avgTrafficMax / 1000000000).toFixed(2)} Gbps` : '0.00 Gbps'}
+                color="#F59E0B"
+              />
+            </div>
+
+            {/* Row 2: LAYER, TRAFFIC IN LOG */}
+            <div style={{
+              display: 'flex',
+              gap: '6px',
+              marginBottom: '8px'
+            }}>
+              <StatCard
+                icon={Activity}
+                label="LAYER"
+                value={connection.nodeData?.layer || connection.nodeData?.trunk_layer || (connection.linkDetails && connection.linkDetails.length > 0 ? connection.linkDetails[0].layer : 'tera - tera')}
+                color="#1F2937"
+              />
+              <StatCard
+                icon={TrendingUp}
+                label="TRAFFIC IN LOG"
+                value={avgTrafficInLog > 0 ? `${(avgTrafficInLog / 1000000000).toFixed(2)} Gbps` : '0.00 Gbps'}
+                color="#3B82F6"
+              />
+            </div>
+
+            {/* Row 3: TRAFFIC OUT LOG, TRAFFIC IN PSK */}
+            <div style={{
+              display: 'flex',
+              gap: '6px',
+              marginBottom: '8px'
+            }}>
+              <StatCard
+                icon={TrendingUp}
+                label="TRAFFIC OUT LOG"
+                value={avgTrafficOutLog > 0 ? `${(avgTrafficOutLog / 1000000000).toFixed(2)} Gbps` : '0.00 Gbps'}
+                color="#10B981"
+              />
+              <StatCard
+                icon={TrendingUp}
+                label="TRAFFIC IN PSK"
+                value={avgTrafficInPsk > 0 ? `${(avgTrafficInPsk / 1000000000).toFixed(2)} Gbps` : '0.00 Gbps'}
+                color="#6366F1"
+              />
+            </div>
+
+            {/* Row 4: TRAFFIC OUT PSK, UTILIZATION */}
+            <div style={{
+              display: 'flex',
+              gap: '6px'
+            }}>
+              <StatCard
+                icon={TrendingUp}
+                label="TRAFFIC OUT PSK"
+                value={avgTrafficOutPsk > 0 ? `${(avgTrafficOutPsk / 1000000000).toFixed(2)} Gbps` : '0.00 Gbps'}
+                color="#14B8A6"
+              />
+              <StatCard
+                icon={Activity}
+                label="UTILIZATION"
+                value={avgUtilization > 0 ? `${avgUtilization.toFixed(2)}%` : `${generatedAvgUtilization.toFixed(0)}%`}
+                color={avgUtilization > 80 ? '#EF4444' : avgUtilization > 60 ? '#F59E0B' : '#10B981'}
               />
             </div>
           </NeumorphicCard>
@@ -463,7 +609,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
               <table style={{
                 width: '100%',
                 borderCollapse: 'collapse',
-                minWidth: connection.linkDetails && connection.linkDetails.length > 0 ? '1900px' : '100%'
+                minWidth: connection.linkDetails && connection.linkDetails.length > 0 ? '2000px' : '100%'
               }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                   <tr style={{ background: 'linear-gradient(135deg, #F8FAFC, #F1F5F9)' }}>
@@ -479,6 +625,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out Log (Mbps)</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic In PSK (Mbps)</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Out PSK (Mbps)</th>
+                    <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'right', minWidth: '110px' }}>Traffic Max (Mbps)</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '100px' }}>Utilization</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '90px' }}>Jml Pisik</th>
                     <th style={{ padding: '10px 8px', fontSize: '10px', fontWeight: '600', color: '#475569', textAlign: 'center', minWidth: '90px' }}>Jml Rec</th>
@@ -491,11 +638,13 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                   {connection.linkDetails && connection.linkDetails.length > 0 ? (
                     // Show detailed link data if available
                     connection.linkDetails.map((detail, index) => {
-                      const capacity = typeof detail.capacity === 'number' ? (detail.capacity / 1000000000).toFixed(2) + ' Gbps' : 'N/A';
+                      // Capacity is in Mbps in trunk_all.json, convert to Gbps
+                      const capacity = typeof detail.capacity === 'number' ? (detail.capacity / 1000).toFixed(2) + ' Gbps' : 'N/A';
                       const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000).toFixed(2) : 'N/A';
                       const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000).toFixed(2) : 'N/A';
                       const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000).toFixed(2) : 'N/A';
                       const traffic_out_psk = typeof detail.traffic_out_psk === 'number' ? (detail.traffic_out_psk / 1000000).toFixed(2) : 'N/A';
+                      const traffic_max = typeof detail.traffic_max === 'number' ? (detail.traffic_max / 1000000).toFixed(2) : 'N/A';
                       const utilization = typeof detail.utilization === 'number' ? detail.utilization.toFixed(2) : '0.00';
 
                       return (
@@ -548,11 +697,14 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           <td style={{ padding: '10px 8px', fontSize: '11px', color: '#14B8A6', textAlign: 'right' }}>
                             {traffic_out_psk}
                           </td>
+                          <td style={{ padding: '10px 8px', fontSize: '11px', color: '#F59E0B', textAlign: 'right', fontWeight: '600' }}>
+                            {traffic_max}
+                          </td>
                           <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                         
                               <span style={{ fontSize: '10px', color: '#374151', fontWeight: '700' }}>
-                                {utilization}
+                                {utilization}%
                               </span>
                             </div>
                           </td>
@@ -568,24 +720,28 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                               <span style={{ fontWeight: '600', color: '#3B82F6' }}>
-                                {typeof detail.source_port_used === 'number' && typeof detail.source_port_count === 'number' 
-                                  ? `${detail.source_port_used}/${detail.source_port_count}` 
+                                {(detail.source_port_used !== null && detail.source_port_used !== undefined && !isNaN(Number(detail.source_port_used))) && 
+                                 (detail.source_port_count !== null && detail.source_port_count !== undefined && !isNaN(Number(detail.source_port_count)))
+                                  ? `${Number(detail.source_port_used)}/${Number(detail.source_port_count)}` 
                                   : 'N/A'}
                               </span>
                               <span style={{ fontSize: '9px', color: '#6B7280' }}>
-                                {typeof detail.source_port_idle === 'number' ? `${detail.source_port_idle} idle` : ''}
+                                {(detail.source_port_idle !== null && detail.source_port_idle !== undefined && !isNaN(Number(detail.source_port_idle))) 
+                                  ? `${Number(detail.source_port_idle)} idle` : ''}
                               </span>
                             </div>
                           </td>
                           <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                               <span style={{ fontWeight: '600', color: '#10B981' }}>
-                                {typeof detail.target_port_used === 'number' && typeof detail.target_port_count === 'number' 
-                                  ? `${detail.target_port_used}/${detail.target_port_count}` 
+                                {(detail.target_port_used !== null && detail.target_port_used !== undefined && !isNaN(Number(detail.target_port_used))) && 
+                                 (detail.target_port_count !== null && detail.target_port_count !== undefined && !isNaN(Number(detail.target_port_count)))
+                                  ? `${Number(detail.target_port_used)}/${Number(detail.target_port_count)}` 
                                   : 'N/A'}
                               </span>
                               <span style={{ fontSize: '9px', color: '#6B7280' }}>
-                                {typeof detail.target_port_idle === 'number' ? `${detail.target_port_idle} idle` : ''}
+                                {(detail.target_port_idle !== null && detail.target_port_idle !== undefined && !isNaN(Number(detail.target_port_idle))) 
+                                  ? `${Number(detail.target_port_idle)} idle` : ''}
                               </span>
                             </div>
                           </td>
@@ -594,7 +750,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     })
                   ) : (
                     // Show generated link data with same column structure
-                    linkDetails.map((link, index) => (
+                    generatedLinkDetails.map((link, index) => (
                       <tr key={link.id} style={{
                         borderTop: index > 0 ? '1px solid #E5E7EB' : 'none',
                         background: index % 2 === 0 ? 'rgba(248,250,252,0.5)' : 'transparent'
@@ -642,6 +798,9 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           N/A
                         </td>
                         <td style={{ padding: '10px 8px', fontSize: '11px', color: '#14B8A6', textAlign: 'right' }}>
+                          N/A
+                        </td>
+                        <td style={{ padding: '10px 8px', fontSize: '11px', color: '#F59E0B', textAlign: 'right', fontWeight: '600' }}>
                           N/A
                         </td>
                         <td style={{ padding: '10px 8px', textAlign: 'center' }}>
@@ -726,7 +885,7 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                 gridTemplateColumns: 'repeat(2, 1fr)',
                 gap: '12px'
               }}>
-                {/* Display edge properties from nodeData (edge data outside details array) */}
+                {/* Display edge properties from nodeData, but use calculated values for traffic fields */}
                 {Object.entries(connection.nodeData)
                   .filter(([key]) =>
                     // Exclude details array and some internal fields that are not useful
@@ -743,16 +902,41 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                     let formattedValue: string;
                     let valueColor = '#1F2937';
 
-                    // Special formatting for specific fields
-                    if (key.includes('capacity') && typeof value === 'number') {
+                    // Special formatting for specific fields - USE CALCULATED VALUES FROM linkDetails for traffic (in Gbps)
+                    if ((key === 'capacity' || key === 'total_capacity') && typeof value === 'number') {
+                      // Use totalCapacityValue from linkDetails if available, otherwise use nodeData value
+                      const capacityToUse = hasTrafficData && totalCapacityValue > 0 ? totalCapacityValue : value;
+                      // Convert Mbps to Gbps (divide by 1000)
+                      formattedValue = `${(capacityToUse / 1000).toFixed(2)} Gbps`;
+                      valueColor = '#8B5CF6';
+                    } else if (key === 'traffic_in_log') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficInLog : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#3B82F6';
+                    } else if (key === 'traffic_out_log') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficOutLog : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#10B981';
+                    } else if (key === 'traffic_in_psk') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficInPsk : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#6366F1';
+                    } else if (key === 'traffic_out_psk') {
+                      // Use calculated sum from linkDetails - convert to Gbps
+                      const trafficValue = hasTrafficData ? avgTrafficOutPsk : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${(trafficValue / 1000000000).toFixed(2)} Gbps`;
+                      valueColor = '#14B8A6';
+                    } else if (key === 'traffic_max' && typeof value === 'number') {
                       formattedValue = `${(value / 1000000000).toFixed(2)} Gbps`;
-                      valueColor = '#7C3AED';
-                    } else if (key.includes('traffic') && typeof value === 'number') {
-                      formattedValue = `${(value / 1000000).toFixed(2)} Mbps`;
-                      valueColor = key.includes('in') ? '#3B82F6' : '#10B981';
-                    } else if (key.includes('utilization') && typeof value === 'number') {
-                      formattedValue = `${value.toFixed(2)}%`;
-                      valueColor = value > 80 ? '#EF4444' : value > 60 ? '#F59E0B' : '#10B981';
+                      valueColor = '#F59E0B';
+                    } else if (key === 'utilization') {
+                      // Use calculated average from linkDetails
+                      const utilValue = hasTrafficData ? avgUtilization : (typeof value === 'number' ? value : 0);
+                      formattedValue = `${utilValue.toFixed(2)}%`;
+                      valueColor = utilValue > 80 ? '#EF4444' : utilValue > 60 ? '#F59E0B' : '#10B981';
                     } else if (key === 'link_count' && typeof value === 'number') {
                       formattedValue = String(value);
                       valueColor = '#8B5CF6';
