@@ -52,7 +52,7 @@ export function Legend() {
         {isExpanded && (
           <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Vendors */}
-            <div>
+            {/* <div>
               <div style={{ fontSize: '10px', color: '#6B7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Vendors:
               </div>
@@ -70,29 +70,25 @@ export function Legend() {
                   <span style={{ fontSize: '12px', color: '#6B7280' }}>NOKIA</span>
                 </div>
               </div>
-            </div>
+            </div> */}
 
             {/* Link Status */}
             <div>
               <div style={{ fontSize: '10px', color: '#6B7280', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Link Status:
+                Link Severity:
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '24px', height: '2px', background: '#10B981', borderRadius: '1px' }}></div>
-                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Good {'(< 70%)'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '24px', height: '2px', background: '#3B82F6', borderRadius: '1px' }}></div>
-                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Medium (70-85%)</span>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Normal (0-40%)</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '24px', height: '2px', background: '#F59E0B', borderRadius: '1px' }}></div>
-                  <span style={{ fontSize: '12px', color: '#6B7280' }}>High {'(> 85%)'}</span>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Warning (41-84%)</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{ width: '24px', height: '2px', background: '#EF4444', borderRadius: '1px' }}></div>
-                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Fault/Critical</span>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Critical (85-100%)</span>
                 </div>
               </div>
             </div>
