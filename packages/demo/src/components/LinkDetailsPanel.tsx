@@ -638,8 +638,6 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                   {connection.linkDetails && connection.linkDetails.length > 0 ? (
                     // Show detailed link data if available
                     connection.linkDetails.map((detail, index) => {
-                      // Capacity is in Mbps in trunk_all.json, convert to Gbps
-                      const capacity = typeof detail.capacity === 'number' ? (detail.capacity / 1000).toFixed(2) + ' Gbps' : 'N/A';
                       const traffic_in_log = typeof detail.traffic_in_log === 'number' ? (detail.traffic_in_log / 1000000).toFixed(2) : 'N/A';
                       const traffic_out_log = typeof detail.traffic_out_log === 'number' ? (detail.traffic_out_log / 1000000).toFixed(2) : 'N/A';
                       const traffic_in_psk = typeof detail.traffic_in_psk === 'number' ? (detail.traffic_in_psk / 1000000).toFixed(2) : 'N/A';
@@ -720,13 +718,13 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                               <span style={{ fontWeight: '600', color: '#3B82F6' }}>
-                                {(detail.source_port_used !== null && detail.source_port_used !== undefined && !isNaN(Number(detail.source_port_used))) && 
-                                 (detail.source_port_count !== null && detail.source_port_count !== undefined && !isNaN(Number(detail.source_port_count)))
-                                  ? `${Number(detail.source_port_used)}/${Number(detail.source_port_count)}` 
+                                {(detail.source_port_used !== null && detail.source_port_used !== undefined && !isNaN(Number(detail.source_port_used))) &&
+                                  (detail.source_port_count !== null && detail.source_port_count !== undefined && !isNaN(Number(detail.source_port_count)))
+                                  ? `${Number(detail.source_port_used)}/${Number(detail.source_port_count)}`
                                   : 'N/A'}
                               </span>
                               <span style={{ fontSize: '9px', color: '#6B7280' }}>
-                                {(detail.source_port_idle !== null && detail.source_port_idle !== undefined && !isNaN(Number(detail.source_port_idle))) 
+                                {(detail.source_port_idle !== null && detail.source_port_idle !== undefined && !isNaN(Number(detail.source_port_idle)))
                                   ? `${Number(detail.source_port_idle)} idle` : ''}
                               </span>
                             </div>
@@ -734,13 +732,13 @@ export function LinkDetailsPanel({ connection, onClose, onShowTopology, isTopolo
                           <td style={{ padding: '10px 8px', fontSize: '10px', color: '#374151', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
                               <span style={{ fontWeight: '600', color: '#10B981' }}>
-                                {(detail.target_port_used !== null && detail.target_port_used !== undefined && !isNaN(Number(detail.target_port_used))) && 
-                                 (detail.target_port_count !== null && detail.target_port_count !== undefined && !isNaN(Number(detail.target_port_count)))
-                                  ? `${Number(detail.target_port_used)}/${Number(detail.target_port_count)}` 
+                                {(detail.target_port_used !== null && detail.target_port_used !== undefined && !isNaN(Number(detail.target_port_used))) &&
+                                  (detail.target_port_count !== null && detail.target_port_count !== undefined && !isNaN(Number(detail.target_port_count)))
+                                  ? `${Number(detail.target_port_used)}/${Number(detail.target_port_count)}`
                                   : 'N/A'}
                               </span>
                               <span style={{ fontSize: '9px', color: '#6B7280' }}>
-                                {(detail.target_port_idle !== null && detail.target_port_idle !== undefined && !isNaN(Number(detail.target_port_idle))) 
+                                {(detail.target_port_idle !== null && detail.target_port_idle !== undefined && !isNaN(Number(detail.target_port_idle)))
                                   ? `${Number(detail.target_port_idle)} idle` : ''}
                               </span>
                             </div>
