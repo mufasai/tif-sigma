@@ -1,5 +1,5 @@
 {
-    "buildCommand": "npm run build -w @sigma/demo",
+    "buildCommand": "npm run build",
     "outputDirectory": "packages/demo/build",
     "installCommand": "npm install",
     "framework": null
