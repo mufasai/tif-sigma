@@ -102,6 +102,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
   const [filteredRuasStoNodes, setFilteredRuasStoNodes] = useState<string[]>([]);
   const [isRuasRekapInitialLoad, setIsRuasRekapInitialLoad] = useState(true);
   const [isRuasRekapStoInitialLoad, setIsRuasRekapStoInitialLoad] = useState(true);
+  // Store trunk_all.json data for port information lookup
+  const [trunkAllPortData, setTrunkAllPortData] = useState<Map<string, any[]> | null>(null);
   // Reserved for future topology features (matching App.tsx structure)
   const [_selectedElement, _setSelectedElement] = useState<NetworkElement | null>(null);
   const [_selectedConnection, _setSelectedConnection] = useState<AreaConnection | null>(null);
@@ -438,6 +440,49 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
 
     loadRuasRekapData();
   }, [selectedRuasLayer]);
+
+  // Load trunk_all.json for port data lookup (source_port_used, source_port_count, etc.)
+  useEffect(() => {
+    const loadTrunkAllPortData = async () => {
+      try {
+        const response = await fetch("/ruas-rekap/trunk_all.json");
+        if (!response.ok) {
+          throw new Error("Failed to load trunk_all.json for port data");
+        }
+        const data = await response.json();
+
+        // Create a map of node ID -> details array for quick lookup
+        const portDataMap = new Map<string, any[]>();
+
+        if (data?.nodes && Array.isArray(data.nodes)) {
+          data.nodes.forEach((node: any) => {
+            if (node.id && node.details && Array.isArray(node.details)) {
+              portDataMap.set(node.id, node.details);
+            }
+          });
+        }
+
+        // Also add edge details keyed by edge ID
+        if (data?.edges && Array.isArray(data.edges)) {
+          data.edges.forEach((edge: any) => {
+            const edgeKey = `edge_${edge.id || edge.source + '_' + edge.target}`;
+            if (edge.details && Array.isArray(edge.details)) {
+              portDataMap.set(edgeKey, edge.details);
+            }
+          });
+        }
+
+        setTrunkAllPortData(portDataMap);
+        // eslint-disable-next-line no-console
+        console.log('Loaded trunk_all.json port data for', portDataMap.size, 'nodes/edges');
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("Error loading trunk_all.json for port data:", error);
+      }
+    };
+
+    loadTrunkAllPortData();
+  }, []);
 
   // Load ruas rekap STO data from ruas_rekap_sto.json
   useEffect(() => {
@@ -2104,6 +2149,32 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             }
           }
 
+          // Merge port data from trunk_all.json if available
+          if (nodeDetails.length > 0 && trunkAllPortData) {
+            const portDetails = trunkAllPortData.get(nodeId);
+            if (portDetails && portDetails.length > 0) {
+              // Merge port data into nodeDetails by matching ruas
+              nodeDetails = nodeDetails.map((detail: any, idx: number) => {
+                // Try to find matching detail by ruas or index
+                const matchingPortDetail = portDetails.find((pd: any) => pd.ruas === detail.ruas) || portDetails[idx];
+                if (matchingPortDetail) {
+                  return {
+                    ...detail,
+                    source_port_used: matchingPortDetail.source_port_used,
+                    source_port_count: matchingPortDetail.source_port_count,
+                    source_port_idle: matchingPortDetail.source_port_idle,
+                    target_port_used: matchingPortDetail.target_port_used,
+                    target_port_count: matchingPortDetail.target_port_count,
+                    target_port_idle: matchingPortDetail.target_port_idle,
+                  };
+                }
+                return detail;
+              });
+              // eslint-disable-next-line no-console
+              console.log('Merged port data from trunk_all.json for node:', nodeId);
+            }
+          }
+
           // Find all edges connected to this node
           const connectedEdges = ruasRekapData?.edges?.filter(
             (edge: any) => edge.source === nodeId || edge.target === nodeId
@@ -2230,7 +2301,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           const linkCount = props?.link_count || 1;
 
           // Parse details if available
-          let detailsData = [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let detailsData: any[] = [];
           try {
             if (props?.details && typeof props.details === "string") {
               detailsData = JSON.parse(props.details);
@@ -2243,6 +2315,44 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           } catch (error) {
             // eslint-disable-next-line no-console
             console.error('Error parsing edge details:', error);
+          }
+
+          // Merge port data from trunk_all.json if available
+          if (detailsData.length > 0 && trunkAllPortData) {
+            const edgeKey = `edge_${props?.id || props?.source + '_' + props?.target}`;
+            const portDetails = trunkAllPortData.get(edgeKey);
+            if (portDetails && portDetails.length > 0) {
+              // Merge port data into detailsData by matching ruas
+              detailsData = detailsData.map((detail: any, idx: number) => {
+                const matchingPortDetail = portDetails.find((pd: any) => pd.ruas === detail.ruas) || portDetails[idx];
+                if (matchingPortDetail) {
+                  return {
+                    ...detail,
+                    source_port_used: matchingPortDetail.source_port_used,
+                    source_port_count: matchingPortDetail.source_port_count,
+                    source_port_idle: matchingPortDetail.source_port_idle,
+                    target_port_used: matchingPortDetail.target_port_used,
+                    target_port_count: matchingPortDetail.target_port_count,
+                    target_port_idle: matchingPortDetail.target_port_idle,
+                  };
+                }
+                return detail;
+              });
+              // eslint-disable-next-line no-console
+              console.log('Merged port data from trunk_all.json for edge:', edgeKey);
+            }
+          }
+
+          // eslint-disable-next-line no-console
+          if (detailsData.length > 0) {
+            console.log('Edge clicked - First detail port data after merge:', {
+              source_port_used: detailsData[0].source_port_used,
+              source_port_count: detailsData[0].source_port_count,
+              source_port_idle: detailsData[0].source_port_idle,
+              target_port_used: detailsData[0].target_port_used,
+              target_port_count: detailsData[0].target_port_count,
+              target_port_idle: detailsData[0].target_port_idle,
+            });
           }
 
           const detailsCount = detailsData?.length || 0;
@@ -2951,6 +3061,31 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
             }
           }
 
+          // Merge port data from trunk_all.json if available
+          if (nodeDetails.length > 0 && trunkAllPortData) {
+            const portDetails = trunkAllPortData.get(nodeId);
+            if (portDetails && portDetails.length > 0) {
+              // Merge port data into nodeDetails by matching ruas
+              nodeDetails = nodeDetails.map((detail: any, idx: number) => {
+                const matchingPortDetail = portDetails.find((pd: any) => pd.ruas === detail.ruas) || portDetails[idx];
+                if (matchingPortDetail) {
+                  return {
+                    ...detail,
+                    source_port_used: matchingPortDetail.source_port_used,
+                    source_port_count: matchingPortDetail.source_port_count,
+                    source_port_idle: matchingPortDetail.source_port_idle,
+                    target_port_used: matchingPortDetail.target_port_used,
+                    target_port_count: matchingPortDetail.target_port_count,
+                    target_port_idle: matchingPortDetail.target_port_idle,
+                  };
+                }
+                return detail;
+              });
+              // eslint-disable-next-line no-console
+              console.log('Merged port data from trunk_all.json for STO node:', nodeId);
+            }
+          }
+
           // Show LinkDetailsPanel with first edge if available
           if (connectedEdges.length > 0) {
             const firstEdge = connectedEdges[0];
@@ -3051,7 +3186,8 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           }
 
           // Parse details if available
-          let detailsData = [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let detailsData: any[] = [];
           try {
             if (props?.details && typeof props.details === "string") {
               detailsData = JSON.parse(props.details);
@@ -3059,6 +3195,39 @@ export const MapLibreView: React.FC<MapLibreViewProps> = () => {
           } catch (_error) {
             /* empty */
           }
+
+          // Merge port data from trunk_all.json if available
+          if (detailsData.length > 0 && trunkAllPortData) {
+            const edgeKey = `edge_${props?.id || props?.source + '_' + props?.target}`;
+            const portDetails = trunkAllPortData.get(edgeKey);
+            if (portDetails && portDetails.length > 0) {
+              detailsData = detailsData.map((detail: any, idx: number) => {
+                const matchingPortDetail = portDetails.find((pd: any) => pd.ruas === detail.ruas) || portDetails[idx];
+                if (matchingPortDetail) {
+                  return {
+                    ...detail,
+                    source_port_used: matchingPortDetail.source_port_used,
+                    source_port_count: matchingPortDetail.source_port_count,
+                    source_port_idle: matchingPortDetail.source_port_idle,
+                    target_port_used: matchingPortDetail.target_port_used,
+                    target_port_count: matchingPortDetail.target_port_count,
+                    target_port_idle: matchingPortDetail.target_port_idle,
+                  };
+                }
+                return detail;
+              });
+              // eslint-disable-next-line no-console
+              console.log('Merged port data from trunk_all.json for STO edge:', edgeKey);
+            }
+          }
+
+          // eslint-disable-next-line no-console
+          console.log('STO Edge clicked - Details with port data:', detailsData.length > 0 ? {
+            source_port_used: detailsData[0].source_port_used,
+            source_port_count: detailsData[0].source_port_count,
+            target_port_used: detailsData[0].target_port_used,
+            target_port_count: detailsData[0].target_port_count,
+          } : 'No details');
 
           new maplibregl.Popup()
             .setLngLat(coordinates)
