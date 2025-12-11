@@ -1,6 +1,6 @@
 {
-    "buildCommand": "npm run build",
-    "outputDirectory": "packages/demo/build",
+    "buildCommand": "npm install && npx lerna bootstrap && npx lerna run build && npm run build -w @sigma/demo",
     "installCommand": "npm install",
+    "outputDirectory": "packages/demo/build",
     "framework": null
 }
