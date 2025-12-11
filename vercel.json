@@ -1,5 +1,0 @@
-{
-    "buildCommand": "npm install && npx lerna run build --stream && npm run build -w @sigma/demo",
-    "installCommand": "npm install",
-    "outputDirectory": "packages/demo/build"
-}
