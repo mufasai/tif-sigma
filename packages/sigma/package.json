@@ -16,6 +16,7 @@
   ],
   "sideEffects": false,
   "scripts": {
+    "build": "vite build",
     "build-bundle": "vite build",
     "prepublishOnly": "cp ../../README.md ."
   },
