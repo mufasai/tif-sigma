@@ -1,5 +1,34 @@
-import { Settings } from "sigma/settings";
-import { NodeDisplayData, PartialButFor, PlainObject } from "sigma/types";
+// Types from sigma - defined locally to avoid subpath import issues
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PlainObject<T = any> = { [k: string]: T };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PartialButFor<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>> & { [others: string]: any };
+
+interface Coordinates {
+  x: number;
+  y: number;
+}
+
+interface DisplayData {
+  label: string | null;
+  size: number;
+  color: string;
+  hidden: boolean;
+  forceLabel: boolean;
+  zIndex: number;
+  type: string;
+}
+
+interface NodeDisplayData extends Coordinates, DisplayData {
+  highlighted: boolean;
+}
+
+interface Settings {
+  labelSize: number;
+  labelFont: string;
+  labelWeight: string;
+}
 
 const TEXT_COLOR = "#000000";
 

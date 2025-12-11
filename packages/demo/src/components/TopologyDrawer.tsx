@@ -2,7 +2,29 @@ import { X, ChevronLeft, ChevronRight, Network, GitBranch, Activity, Move } from
 import React, { useState, useRef, useEffect } from 'react';
 import Graph from 'graphology';
 import Sigma from 'sigma';
-import { NodeDisplayData, PartialButFor } from 'sigma/types';
+
+// Types from sigma - defined locally to avoid subpath import issues
+interface Coordinates {
+  x: number;
+  y: number;
+}
+
+interface DisplayData {
+  label: string | null;
+  size: number;
+  color: string;
+  hidden: boolean;
+  forceLabel: boolean;
+  zIndex: number;
+  type: string;
+}
+
+interface NodeDisplayData extends Coordinates, DisplayData {
+  highlighted: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PartialButFor<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>> & { [others: string]: any };
 
 interface TopologyLink {
   source: string;
@@ -132,7 +154,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     connection.linkDetails.forEach((link) => {
       const sourceId = link.source_node || link.source;
       const targetId = link.target_node || link.target;
-      
+
       if (sourceId) {
         nodeSet.add(sourceId);
         if (!nodeInfo.has(sourceId)) {
@@ -143,7 +165,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
           });
         }
       }
-      
+
       if (targetId) {
         nodeSet.add(targetId);
         if (!nodeInfo.has(targetId)) {
@@ -157,10 +179,10 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
     });
 
     const nodes = Array.from(nodeSet);
-    
+
     // Determine center node - prioritize the clicked node
     let centerNodeId = connection.nodeData?.id || connection.from;
-    
+
     // If centerNodeId is not in the nodeSet, use the first node
     if (!nodeSet.has(centerNodeId) && nodes.length > 0) {
       centerNodeId = nodes[0];
@@ -211,20 +233,20 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
 
     // Group edges by source-target-layer to handle multiple physical links per layer
     const edgeGroups = new Map<string, typeof connection.linkDetails>();
-    
+
     connection.linkDetails.forEach((link) => {
       const sourceId = link.source_node || link.source;
       const targetId = link.target_node || link.target;
       const layer = link.layer || link.trunk_layer || 'unknown';
-      
+
       if (!sourceId || !targetId) return;
-      
+
       // Create a consistent key with layer information
-      const nodeKey = sourceId < targetId 
-        ? `${sourceId}-${targetId}` 
+      const nodeKey = sourceId < targetId
+        ? `${sourceId}-${targetId}`
         : `${targetId}-${sourceId}`;
       const key = `${nodeKey}|${layer}`;
-      
+
       if (!edgeGroups.has(key)) {
         edgeGroups.set(key, []);
       }
@@ -237,7 +259,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
       const sourceId = firstLink.source_node || firstLink.source;
       const targetId = firstLink.target_node || firstLink.target;
       const layer = firstLink.layer || firstLink.trunk_layer || 'unknown';
-      
+
       if (!sourceId || !targetId) return;
 
       // Calculate total capacity for this layer
@@ -248,7 +270,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
 
       const capacityGbps = totalCapacity / 1000000000;
       const capacityLabel = capacityGbps > 0 ? `${capacityGbps.toFixed(1)}G` : '';
-      
+
       // Add link count and layer to label
       const linkCountLabel = links.length > 1 ? ` (${links.length}x)` : '';
       const layerLabel = layer !== 'unknown' ? `\n${layer}` : '';
@@ -262,7 +284,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
           // Calculate edge color based on layer type only
           let edgeColor = '#8b5cf6'; // Default purple
           const layerLower = layer.toLowerCase();
-          
+
           // Color by layer
           if (layerLower.includes('tera')) edgeColor = '#dc2626'; // Red for TERA
           else if (layerLower.includes('metro')) edgeColor = '#ea580c'; // Orange for METRO
@@ -731,7 +753,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
 
         {/* Tabs - Only show if node was clicked and has linkDetails */}
         {connection.clickedType === 'node' && connection.linkDetails && connection.linkDetails.length > 0 && (
-          <div style={{ 
+          <div style={{
             padding: '0 16px',
             borderBottom: '1px solid rgba(229, 231, 235, 0.5)',
           }}>
@@ -949,7 +971,7 @@ export function TopologyDrawer({ connection, onClose }: TopologyDrawerProps) {
               <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: '600', marginBottom: '8px' }}>
                 LAYER COLOR LEGEND
               </div>
-              
+
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <div style={{ width: '20px', height: '4px', background: '#dc2626', borderRadius: '2px' }} />

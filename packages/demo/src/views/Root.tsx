@@ -10,8 +10,6 @@ import { GrClose } from "react-icons/gr";
 import { MdAdd } from "react-icons/md";
 import { FiMap } from "react-icons/fi";
 import { AiOutlineMergeCells } from "react-icons/ai";
-import { Settings } from "sigma/settings";
-
 import { drawHover, drawLabel } from "../canvas-utils";
 import { FiltersState, GraphInputData, NodeData } from "../types";
 import Toast, { ToastType } from "../components/Toast";
@@ -30,7 +28,7 @@ import { CsvJoinView } from "./CsvJoinView";
 // Color map for different manufacturers
 const MANUFACTURER_COLORS = {
   Cisco: "#1ba1e2",
-  Huawei: "#e51400", 
+  Huawei: "#e51400",
   Arista: "#60a917",
   Juniper: "#f09609",
   MikroTik: "#d80073"
@@ -54,7 +52,8 @@ const Root: FC = () => {
     models: {},
   });
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-  const sigmaSettings: Partial<Settings> = useMemo(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sigmaSettings: Record<string, any> = useMemo(
     () => ({
       defaultDrawNodeLabel: drawLabel,
       defaultDrawNodeHover: drawHover,
@@ -90,7 +89,7 @@ const Root: FC = () => {
         // Add nodes to graph
         nodes.forEach((node) => {
           const color = MANUFACTURER_COLORS[node.manufacture as keyof typeof MANUFACTURER_COLORS] || "#666666";
-          
+
           graph.addNode(node.hostname, {
             ...node,
             label: node.hostname,
@@ -111,7 +110,7 @@ const Root: FC = () => {
               for (let j = i + 1; j < regionNodes.length; j++) {
                 // Only connect some nodes to avoid too many edges
                 if (Math.random() > 0.7) {
-                  graph.addEdge(regionNodes[i].hostname, regionNodes[j].hostname, { 
+                  graph.addEdge(regionNodes[i].hostname, regionNodes[j].hostname, {
                     size: 1,
                     color: "#cccccc"
                   });
@@ -127,7 +126,7 @@ const Root: FC = () => {
           regions: mapValues(groupBy(regions, r => r), () => true),
           models: mapValues(groupBy(models, m => m), () => true),
         });
-        
+
         setDataset(nodes);
         requestAnimationFrame(() => setDataReady(true));
       });
@@ -146,11 +145,11 @@ const Root: FC = () => {
       }
 
       const color = MANUFACTURER_COLORS[node.manufacture as keyof typeof MANUFACTURER_COLORS] || "#666666";
-      
+
       // Use provided coordinates or generate random position for ForceAtlas2
       const x = node.longitude !== undefined ? (node.longitude + 180) * 2 : Math.random() * 1000;
       const y = node.latitude !== undefined ? -(node.latitude + 90) * 2 : Math.random() * 1000;
-      
+
       graph.addNode(node.hostname, {
         ...node,
         label: node.hostname,
@@ -176,7 +175,7 @@ const Root: FC = () => {
 
         // Skip if edge already exists
         if (graph.hasEdge(edge.source, edge.target)) {
-          
+
           return;
         }
 
@@ -190,7 +189,7 @@ const Root: FC = () => {
 
     // Apply ForceAtlas2 layout to reposition nodes
     const settings = forceAtlas2.inferSettings(graph);
-    forceAtlas2.assign(graph, { 
+    forceAtlas2.assign(graph, {
       iterations: 100,
       settings: {
         ...settings,
@@ -375,9 +374,9 @@ const Root: FC = () => {
         <CsvJoinView onClose={() => setShowCsvJoin(false)} />
       )}
 
-      <DataInputModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <DataInputModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         onSubmit={handleAddData}
         onNotify={showNotification}
       />
