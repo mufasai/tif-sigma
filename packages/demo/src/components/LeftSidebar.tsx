@@ -66,11 +66,11 @@ export function LeftSidebar({
   // onToggleKabupaten,
   selectedLayer = "none",
   onLayerChange,
-  capacityDataLength = 0,
+  // capacityDataLength = 0,
   // sirkitDataLength = 0,
   // airportsDataAvailable = false,
-  multilayerMapDataAvailable = false,
-  nodeEdgesDataAvailable = false,
+  // multilayerMapDataAvailable = false,
+  // nodeEdgesDataAvailable = false,
   ruasRekapDataAvailable = false,
   ruasRekapData = null,
   // _filteredRuasNodes = [],
@@ -953,7 +953,7 @@ export function LeftSidebar({
                       Ruas Rekap STO{" "}
                       {!ruasRekapStoDataAvailable ? "(Loading...)" : `(${ruasRekapStoData?.nodes?.length || 0} nodes)`}
                     </option> */}
-                    <option value="capacity" disabled={capacityDataLength === 0}>
+                    {/* <option value="capacity" disabled={capacityDataLength === 0}>
                       Capacity Polygons
                     </option>
                     <option value="nodeedges" disabled={!nodeEdgesDataAvailable}>
@@ -961,7 +961,7 @@ export function LeftSidebar({
                     </option>
                     <option value="multilayer" disabled={!multilayerMapDataAvailable}>
                       Links Testing (GeoJSON) {!multilayerMapDataAvailable ? "(Loading...)" : ""}
-                    </option>
+                    </option> */}
                   </select>
                 </div>
               )}
